@@ -15,15 +15,110 @@
 
 	.65C02
 
-via			.EQU $0700
+; VIA locations
 
-sdcard_block		.EQU $0364 ; 2 bytes
-sdcard_readblock	.EQU $E6CF
-clock_low		.EQU $0366
+via			.EQU $0700 ; full page
+via_pb			.EQU via+$00
+via_pa			.EQU via+$01
+via_db			.EQU via+$02
+via_da			.EQU via+$03
+via_pcr			.EQU via+$0C
+via_ifr			.EQU via+$0D
+via_ier			.EQU via+$0E
+via_pah			.EQU via+$0F ; via_pa without handshake
 
-inputchar		.EQU $0330 
-printchar		.EQU $0334
-printchar_coords	.EQU $0338
+spi_clk			.EQU %00000001
+spi_clk_inv		.EQU %11111110
+spi_mosi		.EQU %00000010
+spi_mosi_inv		.EQU %11111101
+spi_cs			.EQU %00000100
+spi_cs_inv		.EQU %11111011
+spi_miso		.EQU %01000000
+spi_miso_inv		.EQU %10111111
+
+joy_select		.EQU %00001000
+joy_select_inv		.EQU %11110111
+
+
+; System RAM locations
+
+key_array		.EQU $0200
+
+key_write		.EQU $0300
+key_read		.EQU $0301
+key_data		.EQU $0302
+key_counter		.EQU $0303
+key_release		.EQU $0304
+key_extended		.EQU $0305
+key_shift		.EQU $0306
+key_capslock		.EQU $0307
+key_alt_control		.EQU $0308
+sub_jump		.EQU $0309 ; 3 bytes long
+sub_read		.EQU $030C ; 4 bytes long
+sub_index		.EQU $0310 ; 4 bytes long
+sub_write		.EQU $0314 ; 4 bytes long
+vector_irq		.EQU $0318 ; 3 bytes long
+sub_random_var		.EQU $031B
+vector_nmi		.EQU $031C ; 3 bytes long
+sub_random		.EQU $031F ; 16 bytes long
+sub_inputchar		.EQU $0330 ; 3 bytes long
+printchar_inverse	.EQU $0333 ; either $00 or $FF
+sub_printchar		.EQU $0334 ; 3 bytes long
+printchar_storage	.EQU $0337
+printchar_x		.EQU $0338 ; from $00 to $3F
+printchar_y		.EQU $0339 ; from $00 to $1D
+printchar_foreground	.EQU $033A ; either $00, $55, $AA, or $FF
+printchar_background	.EQU $033B ; either $00, $55, $AA, or $FF
+printchar_read		.EQU $033C ; 4 bytes long
+printchar_write		.EQU $0340 ; 4 bytes long
+colorchar_input		.EQU $0344
+colorchar_output	.EQU $0345
+monitor_mode		.EQU $0346
+monitor_nibble		.EQU $0347
+monitor_values		.EQU $0358 ; 8 bytes long
+tetra_score_low		.EQU $0350
+tetra_score_high	.EQU $0351
+tetra_piece		.EQU $0352
+tetra_piece_next	.EQU $0353
+tetra_location		.EQU $0354
+tetra_speed		.EQU $0355
+tetra_overscan		.EQU $0356
+tetra_joy_prev		.EQU $0357
+tetra_values		.EQU $0358 ; 3 bytes
+joy_buttons		.EQU $035B
+sdcard_block		.EQU $035C ; 2 bytes 
+clock_low		.EQU $035E
+clock_high		.EQU $035F
+basic_variables_low	.EQU $0360 ; 26 bytes
+basic_variables_high	.EQU $037A ; 26 bytes
+basic_line_low		.EQU $0394
+basic_line_high		.EQU $0395
+basic_value1_low	.EQU $0396
+basic_value1_high	.EQU $0397
+basic_value2_low	.EQU $0398
+basic_value2_high	.EQU $0399
+basic_value3_low	.EQU $039A
+basic_value3_high	.EQU $039B
+basic_value4_low	.EQU $039C
+basic_value4_high	.EQU $039D
+basic_character		.EQU $039E
+basic_operator		.EQU $039F
+basic_keys		.EQU $03A0 ; 16 bytes long
+basic_keys_plus_one	.EQU $03A1 
+basic_wait_end		.EQU $03B0
+basic_wait_delete	.EQU $03B1
+; unused
+command_string		.EQU $03C0 ; 64 bytes long
+
+tetra_field		.EQU $0400 ; 256 bytes long
+
+basic_memory		.EQU $8000 ; 16KB available
+basic_memory_end	.EQU $C000 ; one past
+
+
+sdcard_initialize	.EQU $E4BD
+sdcard_readblock	.EQU $E594
+
 
 	.ORG $0000
 
@@ -51,33 +146,31 @@ loop
 	BNE loop
 
 
-	LDX #$00
-	LDY #$00
-	
-	JSR printchar_coords
+	STZ printchar_x
+	STZ printchar_y
 
 	LDA #"E"
-	JSR printchar
+	JSR sub_printchar
 	LDA #"s"
-	JSR printchar
+	JSR sub_printchar
 	LDA #"c"
-	JSR printchar
+	JSR sub_printchar
 	LDA #" "
-	JSR printchar
+	JSR sub_printchar
 	LDA #"t"
-	JSR printchar
+	JSR sub_printchar
 	LDA #"o"
-	JSR printchar
+	JSR sub_printchar
 	LDA #" "
-	JSR printchar
+	JSR sub_printchar
 	LDA #"E"
-	JSR printchar
+	JSR sub_printchar
 	LDA #"x"
-	JSR printchar
+	JSR sub_printchar
 	LDA #"i"
-	JSR printchar
+	JSR sub_printchar
 	LDA #"t"
-	JSR printchar
+	JSR sub_printchar
 
 
 	LDA #%11000000 ; timer control
@@ -87,7 +180,7 @@ loop
 	STZ via+$05
 
 keys
-	JSR inputchar
+	JSR sub_inputchar
 	CMP #$1B
 	BNE next
 

@@ -159,35 +159,58 @@ sub_inputchar		.EQU $0330 ; 3 bytes long
 printchar_inverse	.EQU $0333 ; either $00 or $FF
 sub_printchar		.EQU $0334 ; 3 bytes long
 printchar_storage	.EQU $0337
-sub_printchar_coords	.EQU $0338 ; 8 bytes long
-printchar_x		.EQU $0340 ; from $00 to $3F
-printchar_y		.EQU $0341 ; from $00 to $1D
-printchar_foreground	.EQU $0342 ; either $00, $55, $AA, or $FF
-printchar_background	.EQU $0343 ; either $00, $55, $AA, or $FF
-printchar_read		.EQU $0344 ; 4 bytes long
-printchar_write		.EQU $0348 ; 4 bytes long
-colorchar_input		.EQU $034C
-colorchar_output	.EQU $034D
-monitor_mode		.EQU $034E
-monitor_nibble		.EQU $034F
-monitor_values		.EQU $0350 ; 8 bytes long
-tetra_score_low		.EQU $0358
-tetra_score_high	.EQU $0359
-tetra_piece		.EQU $035A
-tetra_piece_next	.EQU $035B
-tetra_location		.EQU $035C
-tetra_speed		.EQU $035D
-tetra_overscan		.EQU $035E
-tetra_joy_prev		.EQU $035F
-tetra_values		.EQU $0360 ; 3 bytes
-joy_buttons		.EQU $0363
-sdcard_block		.EQU $0364 ; 2 bytes 
-clock_low		.EQU $0366
-clock_high		.EQU $0367
-	; unused space
-monitor_string		.EQU $03C0 ; 64 bytes long
+printchar_x		.EQU $0338 ; from $00 to $3F
+printchar_y		.EQU $0339 ; from $00 to $1D
+printchar_foreground	.EQU $033A ; either $00, $55, $AA, or $FF
+printchar_background	.EQU $033B ; either $00, $55, $AA, or $FF
+printchar_read		.EQU $033C ; 4 bytes long
+printchar_write		.EQU $0340 ; 4 bytes long
+colorchar_input		.EQU $0344
+colorchar_output	.EQU $0345
+monitor_mode		.EQU $0346
+monitor_nibble		.EQU $0347
+monitor_values		.EQU $0358 ; 8 bytes long
+tetra_score_low		.EQU $0350
+tetra_score_high	.EQU $0351
+tetra_piece		.EQU $0352
+tetra_piece_next	.EQU $0353
+tetra_location		.EQU $0354
+tetra_speed		.EQU $0355
+tetra_overscan		.EQU $0356
+tetra_joy_prev		.EQU $0357
+tetra_values		.EQU $0358 ; 3 bytes
+joy_buttons		.EQU $035B
+sdcard_block		.EQU $035C ; 2 bytes 
+clock_low		.EQU $035E
+clock_high		.EQU $035F
+basic_variables_low	.EQU $0360 ; 26 bytes
+basic_variables_high	.EQU $037A ; 26 bytes
+basic_line_low		.EQU $0394
+basic_line_high		.EQU $0395
+basic_value1_low	.EQU $0396
+basic_value1_high	.EQU $0397
+basic_value2_low	.EQU $0398
+basic_value2_high	.EQU $0399
+basic_value3_low	.EQU $039A
+basic_value3_high	.EQU $039B
+basic_value4_low	.EQU $039C
+basic_value4_high	.EQU $039D
+basic_character		.EQU $039E
+basic_operator		.EQU $039F
+basic_keys		.EQU $03A0 ; 16 bytes long
+basic_keys_plus_one	.EQU $03A1 
+basic_wait_end		.EQU $03B0
+basic_wait_delete	.EQU $03B1
+sub_sdcard_initialize	.EQU $03B2 ; 3 bytes
+sub_sdcard_readblock	.EQU $03B5 ; 3 bytes
+sub_sdcard_writeblock	.EQU $03B8 ; 3 bytes
+; unused
+command_string		.EQU $03C0 ; 64 bytes long
 
 tetra_field		.EQU $0400 ; 256 bytes long
+
+basic_memory		.EQU $8000 ; 16KB available
+basic_memory_end	.EQU $C000 ; one past
 
 
 
@@ -204,7 +227,178 @@ vector_reset
 
 	JSR function_keys_scratchpad
 
-	.ORG $E400 ; intro and help text
+
+
+
+setup
+	STZ printchar_inverse ; turn off inverse
+	LDA #$FF ; white 
+	STA printchar_foreground
+	LDA #$00 ; black
+	STA printchar_background
+
+	LDA #%10111111 ; PB is mostly output
+	STA via_db
+	LDA #%00000000 ; set output pins to low
+	STA via_pb
+	LDA #%00000000 ; PA is all input
+	STA via_da
+	LDA #%00001110 ; CA2 high, CA1 falling edge
+	STA via_pcr
+	LDA #%10000010 ; interrupts on CA1
+	STA via_ier
+
+	LDA #$4C ; JMPa
+	STA vector_irq+0
+	LDA #<key_isr
+	STA vector_irq+1
+	LDA #>key_isr
+	STA vector_irq+2
+
+	LDA #$4C ; JMPa
+	STA vector_nmi+0
+	LDA #<joy_isr
+	STA vector_nmi+1
+	LDA #>joy_isr
+	STA vector_nmi+2
+
+	LDA #$AD ; LDAa
+	STA sub_read+0
+	STA printchar_read+0
+	LDA #$60 ; RTS
+	STA sub_read+3
+	STA printchar_read+3
+
+	LDA #$BD ; LDAax
+	STA sub_index+0
+	LDA #$60 ; RTS
+	STA sub_index+3
+
+	LDA #$8D ; STAa
+	STA sub_write+0
+	STA printchar_write+0
+	LDA #$60 ; RTS
+	STA sub_write+3
+	STA printchar_write+3
+
+	LDA #$4C ; JMPa
+	STA sub_jump+0
+
+	LDA #$4C ; JMPa
+	STA sub_inputchar+0
+	LDA #<inputchar
+	STA sub_inputchar+1
+	LDA #>inputchar
+	STA sub_inputchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_printchar+0
+	LDA #<printchar
+	STA sub_printchar+1
+	LDA #>printchar
+	STA sub_printchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_initialize+0
+	LDA #<sdcard_initialize
+	STA sub_sdcard_initialize+1
+	LDA #>sdcard_initialize
+	STA sub_sdcard_initialize+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_readblock+0
+	LDA #<sdcard_readblock
+	STA sub_sdcard_readblock+1
+	LDA #>sdcard_readblock
+	STA sub_sdcard_readblock+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_writeblock+0
+	LDA #<sdcard_writeblock
+	STA sub_sdcard_writeblock+1
+	LDA #>sdcard_writeblock
+	STA sub_sdcard_writeblock+2
+
+	STZ sub_random_var
+
+	LDX #$10
+setup_random_loop
+	LDA setup_random_code,X
+	STA sub_random,X
+	DEX
+	CPX #$FF
+	BNE setup_random_loop
+
+	JMP setup_done
+
+setup_random_code
+	.BYTE $AD
+	.WORD sub_random_var
+	.BYTE $2A,$18,$2A,$18,$6D
+	.WORD sub_random_var
+	.BYTE $18,$69,$11,$8D
+	.WORD sub_random_var
+	.BYTE $60
+
+setup_done
+
+	JSR basic_clear
+
+	RTS
+
+
+
+
+
+function_keys
+	CMP #$1C ; F1, scratchpad
+	BNE function_keys_next1
+function_keys_scratchpad
+	LDA #$0C ; form feed
+	JSR printchar
+	JSR intro
+	PLA
+	PLA
+	JMP scratchpad
+function_keys_next1
+	CMP #$1D ; F2, monitor
+	BNE function_keys_next2
+	LDA #$0C ; form feed
+	JSR printchar
+	JSR menu
+	PLA
+	PLA
+	JMP monitor
+function_keys_next2
+	CMP #$1E ; F3, basic
+	BNE function_keys_next3
+	LDA #$0C ; form feed
+	JSR printchar
+	JSR menu
+	PLA
+	PLA
+	JMP basic
+function_keys_next3
+	CMP #$1F ; F4, tetra
+	BNE function_keys_next4
+	PLA
+	PLA
+	JMP tetra
+function_keys_next4
+	CMP #$16 ; F9, sdcard_bootloader
+	BNE function_keys_next5
+	JSR sdcard_bootloader
+	CMP #$00
+	BNE function_keys_exit ; successful exit
+	JMP vector_reset ; error exit
+function_keys_next5
+	NOP
+function_keys_exit
+	RTS
+
+
+
+
 
 intro
 	LDX #$00
@@ -218,102 +412,1624 @@ intro_loop
 intro_exit
 	RTS
 intro_text
-	.BYTE "Acolyte"
+	.BYTE "Acolyte "
+	.BYTE "Computer"
 	.BYTE $0D
 	.BYTE "F1=Scrat"
 	.BYTE "chpad, F"
 	.BYTE "2=Monito"
-	.BYTE "r, F3=Te"
-	.BYTE "tra, F4="
-	.BYTE "SDcard"
+	.BYTE "r, F3=BA"
+	.BYTE "SIC, F4="
+	.BYTE "Tetra, F"
+	.BYTE "9=SDcard"
 	.BYTE $0D,$00	
 
 
-help	
+menu
 	LDX #$00
-help_loop
-	LDA help_text,X
+menu_loop
+	LDA menu_text,X
 	CMP #$00
-	BEQ help_exit
+	BEQ menu_exit
 	JSR printchar
 	INX
-	BNE help_loop
-help_exit
+	BNE menu_loop
+menu_exit
+	LDA #$10
+	JSR printchar
 	RTS
-help_text
-	.BYTE "Monitor "
-	.BYTE "EXs"
+menu_text
+	.BYTE "ESC=Brea"
+	.BYTE "k, F12=H"
+	.BYTE "elp",$0D,$00
+
+
+help_monitor	
+	LDX #$00
+help_monitor_loop
+	LDA help_monitor_text,X
+	CMP #$00
+	BEQ help_monitor_exit
+	JSR printchar
+	INX
+	BNE help_monitor_loop
+help_monitor_exit
+	LDA #$10
+	JSR printchar
+	RTS
+help_monitor_text
+	.BYTE $10,$0D
+	.BYTE "Monitor"
 	.BYTE $0D
-	.BYTE "Dsp ="
-	.BYTE " ",$5C
-	.BYTE "F000;",$0D
-	.BYTE "Lst ="
-	.BYTE " ",$5C
-	.BYTE "F000.F03"
-	.BYTE "FL",$0D
-	.BYTE "Wrt ="
-	.BYTE " ",$5C
-	.BYTE "0000",$3A
-	.BYTE "ABCDEF'Z"
-	.BYTE ".0007L",$0D
-	.BYTE "Jmp ="
-	.BYTE " ",$5C
-	.BYTE "0007;000"
-	.BYTE "0",$3A
-	.BYTE "EE070060"
-	.BYTE ",J0007;",$0D
-	.BYTE "Pak ="
-	.BYTE " ",$5C
-	.BYTE "EA>0000."
-	.BYTE "0007PL",$0D
-	.BYTE "Mov ="
-	.BYTE " ",$5C
-	.BYTE "0000<F00"
-	.BYTE "0.F03FM"
+	.BYTE "Help Men"
+	.BYTE "u Under "
+	.BYTE "Construc"
+	.BYTE "tion"
 	.BYTE $0D
-	.BYTE "Brk = Es"
-	.BYTE "cape",$0D
+	.BYTE $00
+
+help_basic	
+	LDX #$00
+help_basic_loop
+	LDA help_basic_text,X
+	CMP #$00
+	BEQ help_basic_exit
+	JSR printchar
+	INX
+	BNE help_basic_loop
+help_basic_exit
+	RTS
+help_basic_text
+	.BYTE $10,$0D
+	.BYTE "BASIC"
+	.BYTE $0D
+	.BYTE "Help Men"
+	.BYTE "u Under "
+	.BYTE "Construc"
+	.BYTE "tion"
+	.BYTE $0D
 	.BYTE $00
 
 
-	.ORG $E500 ; function keys and sdcard functions
 
-function_keys
-	CMP #$1C ; F1, scratchpad
-	BNE function_keys_next1
-function_keys_scratchpad
-	LDA #$0C ; return
+
+
+	.ORG $D800 ; basic
+
+
+basic
+	LDA #$E1 ; produces greyscale
+	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
+
+basic_prompt
+	STZ basic_wait_end
+	STZ basic_wait_delete
+
+	STZ basic_line_low
+	STZ basic_line_high
+
+	LDA #$5C ; prompt
 	JSR printchar
-	JSR intro
-	PLA
-	PLA
-	JMP scratchpad
-function_keys_next1
-	CMP #$1D ; F2, monitor
-	BNE function_keys_next2
-	LDA #$0C ; return
+	LDA #$10 ; cursor
 	JSR printchar
-	JSR help
-	PLA
-	PLA
-	JMP monitor
-function_keys_next2
-	CMP #$1E ; F3, tetra
-	BNE function_keys_next3
-	PLA
-	PLA
-	JMP tetra
-function_keys_next3
-	CMP #$1F ; F4, sdcard_bootloader
-	BNE function_keys_next4
-	JSR sdcard_bootloader
+	
+	LDX #$40
+basic_string
+	DEX
+	STZ command_string,X
+	CPX #$00
+	BNE basic_string
+
+basic_loop
+	CLC
+	JSR sub_random ; helps randomize
+	
+	JSR inputchar
 	CMP #$00
-	BNE function_keys_exit ; successful exit
-	JMP vector_reset ; error exit
-function_keys_next4
-	NOP
-function_keys_exit
+	BEQ basic_loop
+
+	CMP #$15 ; F12 for help
+	BNE basic_loop_continue
+	JSR help_basic
+	JMP basic_prompt
+basic_loop_continue
+
+	CMP #$11 ; arrow up
+	BEQ basic_loop
+	CMP #$12 ; arrow down
+	BEQ basic_loop
+	CMP #$13 ; arrow left
+	BEQ basic_loop
+	CMP #$14 ; arrow right
+	BEQ basic_loop
+	CMP #$09 ; tab
+	BNE basic_loop_tab
+	LDX printchar_x
+	LDA command_string,X
+	BEQ basic_loop
+
+basic_loop_tab
+	PHA
+	LDA #$10 ; cursor
+	JSR printchar
+	PLA
+
+	JSR function_keys
+	CMP #$1B ; escape
+	BEQ basic_escape
+	CMP #$0D ; return
+	BEQ basic_carriage
+	
+	CLC
+	CMP #$20
+	BCC basic_loop_print
+	CLC
+	CMP #$61 ; lower A
+	BCC basic_loop_store
+	CLC
+	CMP #$7B ; one past lower Z
+	BCS basic_loop_store
+	SEC
+	SBC #$20 ; make upper case
+
+basic_loop_store
+	LDX printchar_x
+	CPX #$3F
+	BEQ basic_loop_cursor
+	STA command_string,X
+basic_loop_print
+	JSR printchar ; print actual character
+basic_loop_cursor
+	LDA #$10 ; cursor
+	JSR printchar
+	JMP basic_loop
+
+
+basic_escape
+	LDA #$0D ; return
+	JSR printchar
+	JMP basic_prompt
+basic_escape_check ; subroutine
+	JSR inputchar
+	CMP #$1B ; escape to break
+	BEQ basic_escape
+	CMP #$00
+	BEQ basic_escape_exit
+	PHX
+	PHA
+	LDX #$0F
+basic_escape_loop
+	LDA basic_keys,X
+	CMP #$00
+	BEQ basic_escape_found
+	DEX
+	CPX #$FF
+	BNE basic_escape_loop
+	LDX #$0F
+basic_escape_shift
+	LDA basic_keys_plus_one,X
+	STA basic_keys,X
+	DEX
+	BNE basic_escape_shift
+basic_escape_found
+	PLA
+	STA basic_keys,X
+	PLX
+basic_escape_exit
 	RTS
+
+
+basic_carriage
+	JSR printchar ; print return character
+	LDX #$00
+basic_carriage_clear
+	STZ basic_keys,X
+	INX
+	CPX #$10
+	BNE basic_carriage_clear
+	LDY #$00
+basic_return
+	JSR basic_escape_check
+	CLC
+	CPY #$40
+	BCC basic_return_next
+	JMP basic_prompt
+basic_return_next
+	LDA command_string,Y
+	CLC
+	CMP #$30 ; 0
+	BCC basic_return_increment
+	CLC
+	CMP #$3A ; 9 + 1
+	BCS basic_return_commands
+	JSR basic_line
+	JMP basic_return
+basic_return_commands
+	PHA
+	JSR basic_commands
+	STA basic_character
+	PLA
+	CMP #"P"
+	BNE basic_return_success
+	LDA #$0D
+	JSR printchar
+basic_return_success
+	LDA basic_character
+	CMP #$FF
+	BNE basic_return
+basic_return_increment
+	INY
+	CLC
+	CPY #$40
+	BCC basic_return
+	JMP basic_prompt
+
+
+
+basic_commands
+	CMP #"Q" ; quit
+	BNE basic_commands_end
+	JMP basic_prompt
+basic_commands_end
+	CMP #"E" ; end
+	BNE basic_commands_wait
+	JSR basic_end
+	JMP basic_commands_success
+basic_commands_wait
+	PHA
+	LDA basic_wait_end
+	BEQ basic_commands_continue
+	PLA
+	INY
+basic_commands_wait_loop
+	LDA command_string,Y
+	CMP #$00
+	BEQ basic_commands_wait_found
+	CMP #$17
+	BEQ basic_commands_wait_found
+	CMP #$3A
+	BEQ basic_commands_wait_increment
+	INY
+	CLC
+	CPY #$40
+	BCC basic_commands_wait_loop
+	JMP basic_commands_failure
+basic_commands_wait_increment
+	INY
+basic_commands_wait_found
+	JMP basic_commands_success
+basic_commands_continue
+	PLA
+	CMP #"R" ; run
+	BNE basic_commands_next1
+	JMP basic_run
+basic_commands_next1
+	CMP #"L" ; list
+	BNE basic_commands_next2
+	JSR basic_list
+	LDA #$0D
+	JSR printchar
+	JMP basic_commands_success
+basic_commands_next2
+	CMP #"D" ; delete
+	BNE basic_commands_next3
+	JSR basic_delete
+	JMP basic_commands_success
+basic_commands_next3
+	CMP #"C" ; clear
+	BNE basic_commands_next4
+	JSR basic_clear
+	JMP basic_commands_success
+basic_commands_next4
+	CMP #"V" ; var
+	BNE basic_commands_next5
+	JSR basic_var
+	JMP basic_commands_success
+basic_commands_next5
+	CMP #"P" ; print
+	BNE basic_commands_next6
+	JSR basic_print
+	JMP basic_commands_success
+basic_commands_next6
+	CMP #"G" ; goto
+	BNE basic_commands_next7
+	JSR basic_run ; same as 'run'
+	JMP basic_commands_success
+basic_commands_next7
+	CMP #"S" ; scan 
+	BNE basic_commands_next8
+	JSR basic_scan
+	JMP basic_commands_success
+basic_commands_next8
+	CMP #"N" ; num
+	BNE basic_commands_next9
+	JSR basic_num
+	JMP basic_commands_success
+basic_commands_next9
+	CMP #"I" ; if
+	BNE basic_commands_next10
+	JSR basic_if
+	JMP basic_commands_success
+basic_commands_next10
+	CMP #"M" ; mem
+	BNE basic_commands_next11
+	JSR basic_mem
+	JMP basic_commands_success
+basic_commands_next11
+	NOP
+basic_commands_failure
+	LDA #$00
+	RTS
+basic_commands_success
+	LDA #$FF
+	RTS
+
+
+basic_line
+	STZ basic_value1_low
+	STZ basic_value1_high	
+basic_line_value_start
+	LDA command_string,Y
+	CLC
+	CMP #$30 ; 0
+	BCC basic_line_value_exit
+	CLC
+	CMP #$3A ; 9 + 1
+	BCS basic_line_value_exit
+	STA basic_character
+	LDA #$0A
+	STA basic_value2_low
+	STZ basic_value2_high
+	JSR basic_mul
+	LDA basic_character
+	SEC
+	SBC #"0"
+	STA basic_value2_low
+	STZ basic_value2_high
+	JSR basic_add	
+	INY
+	CLC
+	CPY #$40
+	BCC basic_line_value_start
+basic_line_value_exit
+	LDA basic_value1_high
+	CMP #$00
+	CLC
+	CMP #$80
+	BCS basic_line_value_error
+	CMP #$00
+	BNE basic_line_value_ready
+	LDA basic_value1_low
+	BNE basic_line_value_ready
+basic_line_value_error
+	LDA #$FF
+	RTS
+basic_line_value_ready
+	LDA #<basic_memory
+	STA sub_read+1
+	LDA #>basic_memory
+	STA sub_read+2
+basic_line_seek
+	JSR sub_read
+	CMP #$00
+	BNE basic_line_seek_continue
+	JMP basic_line_seek_check
+basic_line_seek_continue
+	CMP #$17 ; line delimiter
+	BEQ basic_line_seek_number
+basic_line_seek_increment
+	INC sub_read+1
+	BNE basic_line_seek
+	INC sub_read+2
+	LDA sub_read+2
+	CMP #>basic_memory_end
+	BNE basic_line_seek
+	JMP basic_line_new_exit
+basic_line_seek_number
+	LDA sub_read+1
+	STA basic_value3_low
+	LDA sub_read+2
+	STA basic_value3_high
+	INC sub_read+1
+	BNE basic_line_seek_number_next1
+	INC sub_read+2
+	LDA sub_read+2
+	CMP #>basic_memory_end
+	BNE basic_line_seek_number_next2
+	JMP basic_line_new_exit
+basic_line_seek_number_next1
+	JSR sub_read
+	STA basic_value4_low
+	INC sub_read+1
+	BNE basic_line_seek_number_next2
+	INC sub_read+2
+	LDA sub_read+2
+	CMP #>basic_memory_end
+	BNE basic_line_seek_number_next2
+	JMP basic_line_new_exit
+basic_line_seek_number_next2
+	JSR sub_read
+	STA basic_value4_high
+	CLC
+	CMP basic_value1_high
+	BCC basic_line_seek_increment
+	BEQ basic_line_seek_number_equal
+	LDA basic_value3_low
+	STA sub_read+1
+	LDA basic_value3_high
+	STA sub_read+2
+	JMP basic_line_seek_check
+basic_line_seek_number_equal
+	LDA basic_value4_low
+	CLC
+	CMP basic_value1_low
+	BCC basic_line_seek_increment
+	BNE basic_line_seek_number_check
+	JSR basic_line_delete
+	JMP basic_line_seek_check
+basic_line_seek_number_check
+	LDA basic_value3_low
+	STA sub_read+1
+	LDA basic_value3_high
+	STA sub_read+2	
+basic_line_seek_check
+	LDA sub_read
+	CMP #$00
+	BEQ basic_line_new
+	LDA basic_wait_delete
+	BEQ basic_line_insert
+	JMP basic_line_new_exit
+basic_line_insert
+	PHY
+	LDX #$00
+basic_line_insert_count
+	LDA command_string,Y
+	INY
+	CLC
+	CPY #$40
+	BCS basic_line_insert_count_complete	
+	CMP #$00
+	BEQ basic_line_insert_count_complete
+	INX
+	JMP basic_line_insert_count
+basic_line_insert_count_complete
+	PLY
+	LDA sub_read+1
+	STA basic_value3_low
+	LDA sub_read+2
+	STA basic_value3_high
+	TXA
+	CLC
+	ADC #$04
+	EOR #$FF
+	INC A
+	STA sub_read+1
+	LDA #>basic_memory_end
+	DEC A
+	STA sub_read+2
+	LDA #$FF
+	STA sub_write+1
+	LDA #>basic_memory_end
+	DEC A
+	STA sub_write+2
+basic_line_insert_loop
+	JSR sub_read
+	JSR sub_write
+	DEC sub_write+1
+	LDA sub_write+1
+	CMP #$FF
+	BNE basic_line_insert_decrement
+	DEC sub_write+2
+basic_line_insert_decrement
+	DEC sub_read+1
+	LDA sub_read+1
+	CMP #$FF
+	BNE basic_line_insert_compare
+	DEC sub_read+2
+basic_line_insert_compare
+	LDA sub_read+2
+	CMP basic_value3_high
+	BNE basic_line_insert_loop
+	LDA sub_read+1
+	CMP basic_value3_low
+	BNE basic_line_insert_loop
+	JSR sub_read
+	JSR sub_write
+	
+basic_line_new
+	LDA basic_wait_delete
+	BNE basic_line_new_exit
+	LDA sub_read+1
+	STA sub_write+1
+	LDA sub_read+2
+	STA sub_write+2
+	LDA #$17 ; line delimiter
+	JSR sub_write
+	JSR basic_line_new_increment
+	LDA basic_value1_low
+	JSR sub_write
+	JSR basic_line_new_increment
+	LDA basic_value1_high
+	JSR sub_write
+	JSR basic_line_new_increment
+basic_line_new_loop
+	LDA command_string,Y
+	BEQ basic_line_new_exit
+	JSR sub_write
+	JSR basic_line_new_increment
+	INY
+	CLC
+	CPY #$40
+	BCC basic_line_new_loop
+	JMP basic_line_new_exit
+basic_line_new_increment ; subroutine
+	INC sub_write+1
+	BNE basic_line_new_exit
+	INC sub_write+2
+	LDA sub_write+2
+	CMP #>basic_memory_end
+	BNE basic_line_new_exit
+	PLA
+	PLA
+basic_line_new_exit
+	RTS
+
+basic_line_delete
+	LDA sub_read+1
+	STA basic_value3_low
+	LDA sub_read+2
+	STA basic_value3_high
+	LDX #$00
+basic_line_delete_count
+	INC sub_read+1
+	BNE basic_line_delete_count_increment
+	INC sub_read+2
+basic_line_delete_count_increment
+	INX
+	JSR sub_read
+	CMP #$00
+	BEQ basic_line_delete_count_done
+	CMP #$17
+	BEQ basic_line_delete_count_done
+	JMP basic_line_delete_count
+basic_line_delete_count_done
+	LDA basic_value3_low
+	STA sub_write+1
+	LDA basic_value3_high
+	STA sub_write+2
+	DEC sub_write+1
+	LDA sub_write+1
+	CMP #$FF
+	BNE basic_line_delete_shift1
+	DEC sub_write+2
+basic_line_delete_shift1
+	DEC sub_write+1
+	LDA sub_write+1
+	CMP #$FF
+	BNE basic_line_delete_shift2
+	DEC sub_write+2
+basic_line_delete_shift2
+	LDA sub_write+2
+	STA sub_read+2
+	TXA
+	CLC
+	ADC basic_value3_low
+	STA sub_read+1
+	BCC basic_line_delete_loop
+	INC sub_read+2
+basic_line_delete_loop
+	JSR sub_read
+	JSR sub_write
+	INC sub_write+1
+	BNE basic_line_delete_loop_increment
+	INC sub_write+2
+basic_line_delete_loop_increment
+	INC sub_read+1
+	BNE basic_line_delete_loop_check
+	INC sub_read+2
+basic_line_delete_loop_check
+	LDA sub_read+2
+	CMP #>basic_memory_end
+	BNE basic_line_delete_loop
+	JSR sub_read
+	JSR sub_write
+	LDA basic_value3_low
+	STA sub_read+1
+	LDA basic_value3_high
+	STA sub_read+2
+	DEC sub_read+1
+	LDA sub_read+1
+	CMP #$FF
+	BNE basic_line_delete_shift3
+	DEC sub_read+2
+basic_line_delete_shift3
+	DEC sub_read+1
+	LDA sub_read+1
+	CMP #$FF
+	BNE basic_line_delete_shift4
+	DEC sub_read+2
+basic_line_delete_shift4
+	LDA basic_wait_delete
+	BEQ basic_line_delete_exit
+	PLA
+	PLA
+basic_line_delete_exit
+	RTS
+
+
+basic_run
+	LDA #" "
+	JSR basic_search_character
+	LDA #<basic_memory
+	STA sub_read+1
+	LDA #>basic_memory
+	STA sub_read+2
+	JSR basic_search_value
+	LDA basic_value1_low
+	STA basic_line_low
+	LDA basic_value1_high
+	STA basic_line_high
+basic_run_line
+	CMP #$00
+	BNE basic_run_decrement
+	LDA basic_line_low
+	CMP #$00
+	BNE basic_run_decrement
+	JMP basic_run_loop
+basic_run_decrement
+	DEC basic_line_low
+	LDA basic_line_low
+	CMP #$FF
+	BNE basic_run_loop
+	DEC basic_line_high
+basic_run_loop
+	JSR basic_escape_check
+	JSR sub_read
+	INC sub_read+1
+	BNE basic_run_loop_next
+	INC sub_read+2
+basic_run_loop_next
+	CMP #$00
+	BEQ basic_run_exit
+	CMP #$17
+	BEQ basic_run_ready
+	LDA sub_read+2
+	CMP #>basic_memory_end
+	BEQ basic_run_exit
+	JMP basic_run_loop
+basic_run_exit
+	JMP basic_escape
+basic_run_ready
+	JSR sub_read
+	STA basic_value2_low
+	INC sub_read+1
+	BNE basic_run_second
+	INC sub_read+2
+basic_run_second
+	JSR sub_read
+	STA basic_value2_high
+	INC sub_read+1
+	BNE basic_run_check
+	INC sub_read+2
+basic_run_check
+	LDA basic_line_high
+	CLC
+	CMP basic_value2_high
+	BCC basic_run_higher
+	LDA basic_line_low
+	CLC
+	CMP basic_value2_low
+	BCC basic_run_higher
+	JMP basic_run_loop
+basic_run_higher
+	LDA basic_value2_low
+	STA basic_line_low
+	LDA basic_value2_high
+	STA basic_line_high
+	LDX #$00
+basic_run_clear
+	STZ command_string,X
+	INX 
+	CPX #$40
+	BNE basic_run_clear
+	LDY #$00
+basic_run_sub
+	JSR basic_escape_check
+	JSR sub_read
+	CMP #$00
+	BEQ basic_run_execute
+	CMP #$17
+	BEQ basic_run_execute
+	STA command_string,Y
+	INY
+	INC sub_read+1
+	BNE basic_run_sub
+	INC sub_read+2
+	JMP basic_run_sub
+basic_run_execute
+	LDY #$00
+basic_run_execute_loop
+	LDA command_string,Y
+	JSR basic_commands
+	INY
+	CLC
+	CPY #$40
+	BCC basic_run_execute_loop
+	JMP basic_run_loop
+
+
+basic_list
+	DEC printchar_y ; shift output up
+	LDA #" "
+	JSR basic_search_character
+	LDA #<basic_memory
+	STA sub_read+1
+	LDA #>basic_memory
+	STA sub_read+2
+	
+	; make basic_value2 and basic_value3 the first and last to print
+	; could use basic_search_value twice?
+	STZ basic_value2_low
+	STZ basic_value2_high
+	LDA #$FF
+	STA basic_value3_low
+	STA basic_value3_high
+
+basic_list_loop
+	JSR basic_escape_check
+	JSR sub_read
+	CMP #$00
+	BEQ basic_list_exit
+basic_list_increment
+	INC sub_read+1
+	BNE basic_list_continue
+	INC sub_read+2
+basic_list_continue
+	CMP #$17
+	BEQ basic_list_line
+	JSR printchar
+	LDA sub_read+2
+	CMP #>basic_memory_end
+	BNE basic_list_loop
+basic_list_exit
+	RTS
+basic_list_line
+	JSR sub_read
+	STA basic_value1_low
+	INC sub_read+1
+	BNE basic_list_next
+	INC sub_read+2
+basic_list_next	
+	JSR sub_read
+	STA basic_value1_high
+	CLC
+	CMP basic_value2_high
+	BCC basic_list_jump
+	LDA basic_value1_low
+	CLC
+	CMP basic_value2_low
+	BCC basic_list_jump
+	LDA basic_value3_high
+	CLC
+	CMP basic_value1_high
+	BCC basic_list_jump
+	LDA basic_value3_low
+	CLC
+	CMP basic_value1_low
+	BCC basic_list_jump
+	LDA #$0D
+	JSR printchar
+	LDA basic_value2_low
+	PHA
+	LDA basic_value2_high
+	PHA
+	LDA basic_value3_low
+	PHA
+	LDA basic_value3_high
+	PHA
+	JSR basic_print_number
+	PLA
+	STA basic_value3_high
+	PLA
+	STA basic_value3_low
+	PLA
+	STA basic_value2_high
+	PLA
+	STA basic_value2_low
+basic_list_jump
+	LDA #$00
+	JMP basic_list_increment
+
+
+basic_delete
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_delete_exit
+	LDA #$FF
+	STA basic_wait_delete
+	JMP basic_line
+	STZ basic_wait_delete	
+basic_delete_exit
+	RTS
+
+
+basic_clear
+	LDA #3A ; colon
+	JSR basic_search_character
+	LDA #<basic_memory
+	STA sub_write+1
+	LDA #>basic_memory
+	STA sub_write+2
+basic_clear_loop
+	LDA #$00
+	JSR sub_write
+	INC sub_write+1
+	BNE basic_clear_loop
+	INC sub_write+2
+	LDA sub_write+2
+	CMP #>basic_memory_end
+	BNE basic_clear_loop
+	RTS
+
+
+basic_var
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_var_exit
+	JSR basic_search_letter
+	CMP #$00
+	BEQ basic_var_exit
+	SEC
+	SBC #"A"
+	PHA
+	LDA #"="
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_var_exit
+	INY
+	JSR basic_search_value
+	PLX
+	LDA basic_value1_low
+	STA basic_variables_low,X
+	LDA basic_value1_high
+	STA basic_variables_high,X
+basic_var_exit
+	RTS
+
+basic_print
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_print_exit
+	PHY
+	LDA #$22 ; double quotes
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_print_value
+	PLA
+	INY
+basic_print_text
+	JSR basic_escape_check
+	LDA command_string,Y
+	INY
+	CLC
+	CPY #$40
+	BCS basic_print_exit
+	CMP #$22 ; double quote
+	BEQ basic_print_exit
+	CMP #$5C ; slash
+	BNE basic_print_text_ready	
+	LDA #$0D ; return
+basic_print_text_ready
+	JSR printchar
+	JMP basic_print_text
+basic_print_exit
+	INY
+	RTS
+basic_print_value
+	PLY
+	JSR basic_search_value
+basic_print_number
+	LDA basic_value1_high
+	CLC
+	CMP #$80
+	BCC basic_print_unsigned
+	EOR #$FF
+	STA basic_value1_high
+	LDA basic_value1_low
+	EOR #$FF
+	INC A
+	STA basic_value1_low
+	BNE basic_print_negative
+	INC basic_value1_high
+basic_print_negative
+	LDA #"-"
+	JSR printchar
+basic_print_unsigned
+	STZ basic_character
+	LDA basic_value1_low
+	STA basic_value4_low
+	LDA basic_value1_high
+	STA basic_value4_high
+	LDA #$10
+	STA basic_value2_low
+	LDA #$27
+	STA basic_value2_high
+	JSR basic_print_digit
+	LDA #$E8
+	STA basic_value2_low
+	LDA #$03
+	STA basic_value2_high
+	JSR basic_print_digit
+	LDA #$64
+	STA basic_value2_low
+	LDA #$00
+	STA basic_value2_high
+	JSR basic_print_digit
+	LDA #$0A
+	STA basic_value2_low
+	LDA #$00
+	STA basic_value2_high
+	JSR basic_print_digit
+	LDA basic_value1_low
+	CLC
+	ADC #$30
+	JSR printchar
+	JMP basic_print_exit
+basic_print_digit
+	JSR basic_div
+	LDA basic_character
+	BNE basic_print_digit_ready
+	LDA basic_value1_low
+	BEQ basic_print_digit_skip
+basic_print_digit_ready
+	LDA basic_value1_low
+	CLC
+	ADC #$30
+	JSR printchar
+	STA basic_character
+basic_print_digit_skip
+	LDA basic_value4_low
+	STA basic_value1_low
+	LDA basic_value4_high
+	STA basic_value1_high
+	JSR basic_mod
+	LDA basic_value1_low
+	STA basic_value4_low
+	LDA basic_value1_high	
+	STA basic_value4_high
+	RTS
+
+basic_scan
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_scan_exit
+	JSR basic_search_letter
+	CMP #$00
+	BEQ basic_scan_exit
+	SEC
+	SBC #"A"
+	PHA
+	LDX #$00
+basic_scan_loop
+	LDA basic_keys,X
+	BNE basic_scan_found
+	INX
+	CPX #$10
+	BNE basic_scan_loop
+	JMP basic_scan_get
+basic_scan_found
+	STZ basic_keys,X
+basic_scan_get	
+	PLX
+	STA basic_variables_low,X
+	STZ basic_variables_high,X
+basic_scan_exit
+	RTS
+
+
+
+basic_num
+	LDA #$0D ; return
+	JSR printchar
+	LDA #$10 ; cursor
+	JSR printchar
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_num_exit
+	JSR basic_search_letter
+	CMP #$00
+	BEQ basic_num_exit
+	SEC
+	SBC #"A"
+	PHA ; letter
+	LDA #$00
+	PHA ; negative
+	LDX #$00
+basic_num_clear
+	STZ basic_keys,X
+	INX
+	CPX #$10
+	BNE basic_num_clear
+basic_num_loop
+	JSR basic_escape_check ; replaces inputchar
+	CMP #$00
+	BEQ basic_num_loop
+	CMP #$0D
+	BEQ basic_num_return
+	CMP #$08
+	BEQ basic_num_backspace
+	CMP #$09
+	BEQ basic_num_tab
+	CMP #"-"
+	BEQ basic_num_print
+	CLC
+	CMP #$30 ; 0
+	BCC basic_num_loop
+	CLC
+	CMP #$3A ; 9 + 1
+	BCS basic_num_loop
+basic_num_print
+	LDX printchar_x
+	STA basic_keys,X
+	JSR printchar
+	LDA #$10 ; cursor
+	JSR printchar
+	LDA printchar_x
+	CLC	
+	CMP #$10
+	BCC basic_num_loop
+	JMP basic_num_return
+basic_num_exit
+	RTS
+basic_num_backspace
+	PHA
+	LDA #$10 ; cursor
+	JSR printchar
+	PLA
+	JSR printchar
+	LDA #$10 ; cursor
+	JSR printchar
+	JMP basic_num_loop
+basic_num_tab
+	PHA
+	LDA #$10 ; cursor
+	JSR printchar
+	PLA
+	LDX printchar_x
+	LDA basic_keys,X
+	CMP #$00
+	BEQ basic_num_tab_cursor
+	JSR printchar
+	LDA printchar_x
+	CMP #$10
+	BNE basic_num_tab_cursor
+	DEC printchar_x
+basic_num_tab_cursor
+	LDA #$10 ; cursor
+	JSR printchar
+	JMP basic_num_loop
+basic_num_return
+	LDA #$10 ; cursor
+	JSR printchar
+	LDA #$0D ; return
+	JSR printchar
+	STZ basic_value1_low
+	STZ basic_value1_high
+	LDX #$00
+basic_num_count
+	LDA basic_keys,X
+	BEQ basic_num_store
+	LDA #$0A
+	STA basic_value2_low
+	STZ basic_value2_high
+	JSR basic_mul
+	LDA basic_keys,X
+	CMP #"-"
+	BEQ basic_num_negative
+	SEC
+	SBC #"0"
+	STA basic_value2_low
+	STZ basic_value2_high
+	JSR basic_add
+basic_num_increment
+	INX
+	CPX #$10
+	BNE basic_num_count
+basic_num_store
+	PLA
+	BEQ basic_num_final
+	LDA basic_value1_high
+	EOR #$FF
+	STA basic_value1_high
+	LDA basic_value1_low
+	EOR #$FF
+	INC A
+	STA basic_value1_low
+	BNE basic_num_final
+	INC basic_value1_high
+basic_num_final
+	PLX
+	LDA basic_value1_low
+	STA basic_variables_low,X
+	LDA basic_value1_high
+	STA basic_variables_high,X
+	JMP basic_num_exit
+basic_num_negative
+	PLA
+	EOR #$FF
+	PHA
+	JMP basic_num_increment
+
+
+basic_if
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_if_exit
+	JSR basic_search_value
+	CMP #$00
+	BEQ basic_if_exit
+	LDA command_string,Y
+	PHA
+	LDA basic_value1_low
+	PHA
+	LDA basic_value1_high
+	PHA
+	INY
+	JSR basic_search_value
+	LDA basic_value1_low
+	STA basic_value3_low
+	LDA basic_value1_high
+	CLC
+	ADC #$80 ; because everything is signed integers
+	STA basic_value3_high
+	PLA
+	CLC
+	ADC #$80 ; because everything is signed integers
+	STA basic_value2_high
+	PLA
+	STA basic_value2_low
+	PLA
+	JMP basic_if_comparator1
+basic_if_exit
+	LDA #$FF
+	RTS
+basic_if_comparator1
+	CMP #"="
+	BNE basic_if_comparator2
+	LDA basic_value2_high
+	CMP basic_value3_high
+	BNE basic_if_not
+	LDA basic_value2_low
+	CMP basic_value3_low
+	BNE basic_if_not
+	JMP basic_if_exit	
+basic_if_comparator2
+	CMP #$3C ; less than
+	BNE basic_if_comparator3
+	LDA basic_value3_high
+	CLC
+	CMP basic_value2_high
+	BCC basic_if_not
+	BNE basic_if_exit
+	LDA basic_value3_low
+	CLC
+	CMP basic_value2_low
+	BCC basic_if_not
+	BEQ basic_if_not
+	JMP basic_if_exit
+basic_if_comparator3
+	CMP #$3E ; greater than
+	BNE basic_if_comparator4
+	LDA basic_value2_high
+	CLC
+	CMP basic_value3_high
+	BCC basic_if_not
+	BNE basic_if_exit
+	LDA basic_value2_low
+	CLC
+	CMP basic_value3_low
+	BCC basic_if_not
+	BEQ basic_if_not
+	JMP basic_if_exit
+basic_if_comparator4
+	CMP #"#"
+	BNE basic_if_exit
+	LDA basic_value2_high
+	CMP basic_value3_high
+	BNE basic_if_exit
+	LDA basic_value2_low
+	CMP basic_value3_low
+	BNE basic_if_exit
+basic_if_not
+	LDA #$FF
+	STA basic_wait_end
+	RTS
+
+basic_end	
+	STZ basic_wait_end
+	LDA #$3A ; colon
+	JSR basic_search_character
+	RTS
+
+
+
+
+basic_mem
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BEQ basic_mem_exit
+	JSR basic_search_value
+	LDA command_string,Y
+	CMP #"<"
+	BEQ basic_mem_write
+	CMP #">"
+	BEQ basic_mem_read
+	JMP basic_mem_exit
+basic_mem_write
+	LDA basic_value1_low
+	STA sub_write+1
+	LDA basic_value1_high
+	STA sub_write+2
+	INY
+	JSR basic_search_value
+	LDA basic_value1_low
+	JSR sub_write
+	RTS	
+basic_mem_read
+	LDA basic_value1_low
+	PHA
+	LDA basic_value1_high
+	PHA
+	INY
+	JSR basic_search_letter
+	CMP #$00
+	BEQ basic_mem_exit
+	SEC
+	SBC #"A"
+	TAX
+	PLA
+	STA sub_read+2
+	PLA
+	STA sub_read+1
+	JSR sub_read
+	STA basic_variables_low,X
+	STZ basic_variables_high,X
+	RTS
+basic_mem_exit
+	RTS
+
+
+
+
+
+; pre-loaded in A
+basic_search_character
+	STA basic_character
+basic_search_character_start
+	LDA command_string,Y
+	CMP #$3A ; colon
+	BEQ basic_search_character_exit
+	CMP basic_character
+	BNE basic_search_character_loop
+	RTS
+basic_search_character_loop
+	INY
+	CLC
+	CPY #$40
+	BCC basic_search_character_start
+basic_search_character_exit
+	LDA #$00
+	RTS
+
+basic_search_letter
+	LDA command_string,Y
+	CLC
+	CMP #$41
+	BCC basic_search_letter_loop
+	CLC
+	CMP #$5B
+	BCS basic_search_letter_loop
+	RTS
+basic_search_letter_loop
+	INY
+	CLC
+	CPY #$40
+	BCC basic_search_letter
+	LDA #$00
+	RTS
+
+basic_search_value
+	STZ basic_value1_low
+	STZ basic_value1_high	
+	STZ basic_value4_low
+	STZ basic_value4_high
+	LDA #"+"
+	STA basic_operator
+basic_search_value_start
+	JSR basic_escape_check
+	LDA command_string,Y
+	CLC
+	CMP #$30 ; 0
+	BCC basic_search_value_list1
+	CLC
+	CMP #$3A ; 9 + 1
+	BCS basic_search_value_list1
+	JMP basic_search_value_digit
+basic_search_value_list1
+	CLC
+	CMP #$41 ; A
+	BCC basic_search_value_list2
+	CLC
+	CMP #$5B ; Z + 1
+	BCS basic_search_value_list2
+	JMP basic_search_value_letter
+basic_search_value_list2
+	CMP #"=" ; comparator
+	BEQ basic_search_value_comparator
+	CMP #$3C ; less than
+	BEQ basic_search_value_comparator
+	CMP #$3E ; greater than
+	BEQ basic_search_value_comparator
+	CMP #"#"
+	BEQ basic_search_value_comparator
+	CMP #$3A ; colon
+	BEQ basic_search_value_comparator
+	CMP #"+"
+	BEQ basic_search_value_operator
+	CMP #"-"
+	BEQ basic_search_value_operator
+	CMP #"*"
+	BEQ basic_search_value_operator
+	CMP #"/"
+	BEQ basic_search_value_operator
+	CMP #$25 ; mod
+	BEQ basic_search_value_operator
+	JMP basic_search_value_loop
+basic_search_value_comparator
+	JMP basic_search_value_operator
+basic_search_value_loop
+	INY
+	CLC
+	CPY #$40
+	BCC basic_search_value_start
+	LDA #$3A ; colon
+	BNE basic_search_value_operator
+basic_search_value_digit
+	STA basic_character
+	LDA basic_value1_low
+	PHA
+	LDA basic_value1_high
+	PHA
+	LDA basic_value4_low
+	STA basic_value1_low
+	LDA basic_value4_high
+	STA basic_value1_high
+	LDA #$0A
+	STA basic_value2_low
+	STZ basic_value2_high
+	JSR basic_mul
+	LDA basic_character
+	SEC
+	SBC #"0"
+	STA basic_value2_low
+	STZ basic_value2_high
+	JSR basic_add	
+	LDA basic_value1_low
+	STA basic_value4_low
+	LDA basic_value1_high
+	STA basic_value4_high
+	PLA
+	STA basic_value1_high
+	PLA
+	STA basic_value1_low
+	JMP basic_search_value_loop
+basic_search_value_letter
+	SEC
+	SBC #"A"
+	TAX
+	LDA basic_variables_low,X
+	STA basic_value4_low
+	LDA basic_variables_high,X
+	STA basic_value4_high
+	JMP basic_search_value_loop
+basic_search_value_operator
+	PHA
+	LDA basic_value4_low
+	STA basic_value2_low
+	LDA basic_value4_high
+	STA basic_value2_high
+	LDA basic_operator
+	CMP #"+"
+	BNE basic_search_value_operator_next1
+	JSR basic_add
+	JMP basic_search_value_operator_end
+basic_search_value_operator_next1
+	CMP #"-"
+	BNE basic_search_value_operator_next2
+	JSR basic_sub
+	JMP basic_search_value_operator_end
+basic_search_value_operator_next2
+	CMP #"*"
+	BNE basic_search_value_operator_next3
+	JSR basic_mul
+	JMP basic_search_value_operator_end
+basic_search_value_operator_next3
+	CMP #"/"
+	BNE basic_search_value_operator_next4
+	JSR basic_div
+	JMP basic_search_value_operator_end
+basic_search_value_operator_next4
+	CMP #$25 ; mod
+	BNE basic_search_value_operator_next5
+	JSR basic_mod
+	JMP basic_search_value_operator_end
+basic_search_value_operator_next5
+	NOP
+basic_search_value_operator_end
+	PLA
+	STA basic_operator
+	CMP #"="
+	BEQ basic_search_value_exit
+	CMP #$3C
+	BEQ basic_search_value_exit
+	CMP #$3E
+	BEQ basic_search_value_exit
+	CMP #"#"
+	BEQ basic_search_value_exit
+	CMP #$3A ; colon
+	BEQ basic_search_value_exit
+	STZ basic_value4_low
+	STZ basic_value4_high
+	JMP basic_search_value_loop
+basic_search_value_exit
+	RTS
+
+
+basic_add
+	LDA basic_value1_low
+	CLC
+	ADC basic_value2_low
+	STA basic_value1_low
+	BCC basic_add_next
+	INC basic_value1_high
+basic_add_next
+	LDA basic_value1_high
+	CLC
+	ADC basic_value2_high
+	STA basic_value1_high
+	RTS
+
+basic_sub
+	LDA basic_value1_low
+	SEC
+	SBC basic_value2_low
+	STA basic_value1_low
+	BCS basic_sub_next
+	DEC basic_value1_high
+basic_sub_next
+	LDA basic_value1_high
+	SEC
+	SBC basic_value2_high
+	STA basic_value1_high
+	RTS
+
+basic_mul
+	LDA basic_value2_low
+	PHA
+	LDA basic_value2_high
+	PHA
+	LDA basic_value1_low
+	STA basic_value3_low
+	LDA basic_value1_high
+	STA basic_value3_high
+	STZ basic_value1_low
+	STZ basic_value1_high
+basic_mul_start
+	LDA basic_value2_high
+	BNE basic_mul_ready
+	LDA basic_value2_low
+	BNE basic_mul_ready
+	PLA
+	STA basic_value2_high
+	PLA
+	STA basic_value2_low
+	RTS
+basic_mul_ready
+	DEC basic_value2_low
+	LDA basic_value2_low
+	CMP #$FF
+	BNE basic_mul_check
+	DEC basic_value2_high
+basic_mul_check
+	LDA basic_value1_low
+	CLC
+	ADC basic_value3_low
+	STA basic_value1_low
+	BCC basic_mul_add
+	INC basic_value1_high
+basic_mul_add
+	LDA basic_value1_high
+	CLC
+	ADC basic_value3_high
+	STA basic_value1_high
+	JMP basic_mul_start
+
+basic_div
+	STZ basic_value3_low
+	STZ basic_value3_high
+basic_div_start
+	LDA basic_value1_low
+	SEC
+	SBC basic_value2_low
+	STA basic_value1_low
+	BCS basic_div_sub
+	DEC basic_value1_high
+	LDA basic_value1_high
+	CMP #$FF
+	BEQ basic_div_exit
+basic_div_sub
+	LDA basic_value1_high
+	SEC
+	SBC basic_value2_high
+	STA basic_value1_high
+	BCS basic_div_increment
+basic_div_exit
+	LDA basic_value3_low
+	STA basic_value1_low
+	LDA basic_value3_high
+	STA basic_value1_high
+	RTS
+basic_div_increment
+	INC basic_value3_low
+	BNE basic_div_start
+	INC basic_value3_high
+	JMP basic_div_start
+
+basic_mod
+	LDA basic_value1_low
+	STA basic_value3_low
+	LDA basic_value1_high
+	STA basic_value3_high
+basic_mod_start
+	LDA basic_value1_low
+	SEC
+	SBC basic_value2_low
+	STA basic_value1_low
+	BCS basic_mod_sub
+	DEC basic_value1_high
+	LDA basic_value1_high
+	CMP #$FF
+	BEQ basic_mod_exit
+basic_mod_sub
+	LDA basic_value1_high
+	SEC
+	SBC basic_value2_high
+	STA basic_value1_high
+	BCS basic_mod_store
+basic_mod_exit
+	LDA basic_value3_low
+	STA basic_value1_low
+	LDA basic_value3_high
+	STA basic_value1_high
+	RTS
+basic_mod_store
+	LDA basic_value1_low
+	STA basic_value3_low
+	LDA basic_value1_high
+	STA basic_value3_high
+	JMP basic_mod_start
+
+
+
+
+	.ORG $E400 ; sdcard functions
 
 sdcard_enable
 	PHA
@@ -715,7 +2431,7 @@ sdcard_bootloader_error
 
 
 	
-	.ORG $E800 ; tetra
+	.ORG $E900 ; tetra
 
 tetra_color_fore	.EQU $55
 tetra_color_back	.EQU $AA
@@ -1786,116 +3502,6 @@ colornum_10_count
 	PLY
 	RTS
 
-	
-	.ORG $F000 ; setup
-
-setup
-	STZ printchar_inverse ; turn off inverse
-	LDA #$FF ; white 
-	STA printchar_foreground
-	LDA #$00 ; black
-	STA printchar_background
-
-	LDA #%10111111 ; PB is mostly output
-	STA via_db
-	LDA #%00000000 ; set output pins to low
-	STA via_pb
-	LDA #%00000000 ; PA is all input
-	STA via_da
-	LDA #%00001110 ; CA2 high, CA1 falling edge
-	STA via_pcr
-	LDA #%10000010 ; interrupts on CA1
-	STA via_ier
-
-	LDA #$4C ; JMPa
-	STA vector_irq+0
-	LDA #<key_isr
-	STA vector_irq+1
-	LDA #>key_isr
-	STA vector_irq+2
-
-	LDA #$4C ; JMPa
-	STA vector_nmi+0
-	LDA #<joy_isr
-	STA vector_nmi+1
-	LDA #>joy_isr
-	STA vector_nmi+2
-
-	LDA #$AD ; LDAa
-	STA sub_read+0
-	STA printchar_read+0
-	LDA #$60 ; RTS
-	STA sub_read+3
-	STA printchar_read+3
-
-	LDA #$BD ; LDAax
-	STA sub_index+0
-	LDA #$60 ; RTS
-	STA sub_index+3
-
-	LDA #$8D ; STAa
-	STA sub_write+0
-	STA printchar_write+0
-	LDA #$60 ; RTS
-	STA sub_write+3
-	STA printchar_write+3
-
-	LDA #$4C ; JMPa
-	STA sub_jump+0
-
-	LDA #$4C ; JMPa
-	STA sub_inputchar+0
-	LDA #<inputchar
-	STA sub_inputchar+1
-	LDA #>inputchar
-	STA sub_inputchar+2
-
-	LDA #$4C ; JMPa
-	STA sub_printchar+0
-	LDA #<printchar
-	STA sub_printchar+1
-	LDA #>printchar
-	STA sub_printchar+2
-
-	LDA #$8E ; STXa
-	STA sub_printchar_coords+0
-	LDA #<printchar_x
-	STA sub_printchar_coords+1
-	LDA #>printchar_x
-	STA sub_printchar_coords+2
-	LDA #$8C ; STYa
-	STA sub_printchar_coords+3
-	LDA #<printchar_y
-	STA sub_printchar_coords+4
-	LDA #>printchar_y
-	STA sub_printchar_coords+5
-	LDA #$60 ; RTS
-	STA sub_printchar_coords+6
-
-	STZ sub_random_var
-
-	LDX #$10
-setup_random_loop
-	LDA setup_random_code,X
-	STA sub_random,X
-	DEX
-	CPX #$FF
-	BNE setup_random_loop
-
-	JMP setup_done
-
-setup_random_code
-	.BYTE $AD
-	.WORD sub_random_var
-	.BYTE $2A,$18,$2A,$18,$6D
-	.WORD sub_random_var
-	.BYTE $18,$69,$11,$8D
-	.WORD sub_random_var
-	.BYTE $60
-
-setup_done
-	RTS
-
 
 
 	.ORG $F100 ; scratchpad and monitor
@@ -1941,7 +3547,7 @@ monitor
 	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
 
 monitor_prompt
-	LDA #$5C ; prompt
+	LDA #$24 ; prompt
 	JSR printchar
 	LDA #$10 ; cursor
 	JSR printchar
@@ -1951,7 +3557,7 @@ monitor_prompt
 	LDX #$40
 monitor_clear
 	DEX
-	STZ monitor_string,X
+	STZ command_string,X
 	CPX #$00
 	BNE monitor_clear
 
@@ -1963,6 +3569,12 @@ monitor_loop
 	CMP #$00
 	BEQ monitor_loop
 
+	CMP #$15 ; F12 for help
+	BNE monitor_loop_continue
+	JSR help_monitor
+	JMP monitor_prompt
+monitor_loop_continue
+
 	CMP #$11 ; arrow up
 	BEQ monitor_loop
 	CMP #$12 ; arrow down
@@ -1971,7 +3583,13 @@ monitor_loop
 	BEQ monitor_loop
 	CMP #$14 ; arrow right
 	BEQ monitor_loop
+	CMP #$09 ; tab
+	BNE monitor_loop_tab
+	LDX printchar_x
+	LDA command_string,X
+	BEQ monitor_loop
 
+monitor_loop_tab
 	PHA
 	LDA #$10 ; cursor
 	JSR printchar
@@ -1984,18 +3602,25 @@ monitor_loop
 	BEQ monitor_return
 	
 	CLC
-	CMP #$61 ; lower A
+	CMP #$20
 	BCC monitor_loop_print
 	CLC
+	CMP #$61 ; lower A
+	BCC monitor_loop_store
+	CLC
 	CMP #$7B ; one past lower Z
-	BCS monitor_loop_print
+	BCS monitor_loop_store
 	SEC
 	SBC #$20 ; make upper case
 
-monitor_loop_print
+monitor_loop_store
 	LDX printchar_x
-	STA monitor_string,X
+	CPX #$3F
+	BEQ monitor_loop_cursor
+	STA command_string,X
+monitor_loop_print
 	JSR printchar ; print actual character
+monitor_loop_cursor
 	LDA #$10 ; cursor
 	JSR printchar
 	JMP monitor_loop
@@ -2014,7 +3639,7 @@ monitor_run
 	CMP #$1B ; escape to break
 	BEQ monitor_escape
 
-	LDA monitor_string,Y
+	LDA command_string,Y
 	INY
 	CPY #$40
 	BEQ monitor_escape
@@ -2103,7 +3728,7 @@ monitor_literal
 
 monitor_char
 	INC monitor_mode
-	LDA monitor_string,Y
+	LDA command_string,Y
 	INY
 	CPY #$40
 	BNE monitor_char_continue
@@ -2814,8 +4439,8 @@ printchar_clearscreen_loop
 ; converts PS/2 codes to ASCII
 ; 256 bytes
 key_conversion
-	.BYTE $00,$16,$0C,$0F,$1E,$1C,$1D,$15
-	.BYTE $00,$18,$07,$0E,$1F,$09,$60,$00
+	.BYTE $00,$16,$0C,$0E,$1E,$1C,$1D,$15
+	.BYTE $00,$18,$07,$0F,$1F,$09,$60,$00
 	.BYTE $00,$00,$00,$00,$00,$71,$31,$00
 	.BYTE $00,$00,$7A,$73,$61,$77,$32,$00
 	.BYTE $00,$63,$78,$64,$65,$34,$33,$00
@@ -2831,8 +4456,8 @@ key_conversion
 	.BYTE $30,$2E,$32,$35,$36,$38,$1B,$00
 	.BYTE $19,$2B,$33,$2D,$2A,$39,$00,$00
 
-	.BYTE $00,$16,$0C,$0F,$1E,$1C,$1D,$15
-	.BYTE $00,$18,$07,$0E,$1F,$09,$7E,$00
+	.BYTE $00,$16,$0C,$0E,$1E,$1C,$1D,$15
+	.BYTE $00,$18,$07,$0F,$1F,$09,$7E,$00
 	.BYTE $00,$00,$00,$00,$00,$51,$21,$00
 	.BYTE $00,$00,$5A,$53,$41,$57,$40,$00
 	.BYTE $00,$43,$58,$44,$45,$24,$23,$00
@@ -3045,7 +4670,7 @@ key_bitmap
 	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
 
 
-	.ORG $FF00 ; keyboard interrupt code and joystick poll code
+	.ORG $FF00 ; keyboard interrupt code and joystick interrupt code
 
 key_init
 	STZ key_write
@@ -3125,48 +4750,6 @@ joy_isr_clock
 
 
 
-;	STZ joy_ready
-;	LDA joy_enable
-;	BNE joy_isr_error
-;	LDA via_pa
-;	AND #%00001100
-;	BNE joy_isr_error
-;joy_isr_continue
-;	LDA via_pa
-;	AND #%00110000
-;	CLC
-;	ROL A
-;	ROL A
-;	STA joy_buttons
-;	LDA via_pb
-;	ORA #joy_select
-;	STA via_pb
-;	LDA via_pa
-;	AND #%00111111
-;	ORA joy_buttons
-;	STA joy_buttons
-;	PHX
-;	LDX #$03
-;	LDA via_pb
-;joy_isr_loop
-;	AND #joy_select_inv
-;	STA via_pb
-;	ORA #joy_select
-;	STA via_pb
-;	DEX
-;	BNE joy_isr_loop
-;	PLX
-;	LDA via_pb
-;	AND #joy_select_inv
-;	STA via_pb
-;joy_isr_exit
-;	PLA
-;	RTI
-;joy_isr_error
-;	LDA #$FF
-;	STA joy_buttons
-;	PLA
-;	RTI
 
 
 	.ORG $FFFA ; vectors

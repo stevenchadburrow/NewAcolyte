@@ -55,7 +55,7 @@ assign address[6:0] = ((~phi2 && ~half) ? video_addr[6:0] : ((~phi2) ? video_add
 assign address[7] = ((~phi2 && ~half) ? video_addr[9] : ((~phi2) ? 1'b0 : 1'bz));
 
 assign last = (phi2 && half) ? 1'b1 : 1'b0;
-assign via = (phi2 && address[6:0] == 7'b0000111) ? 1'b0 : 1'b1;
+assign via = (phi2 && address[7:0] == 8'b00000111) ? 1'b0 : 1'b1;
 assign ram = (~phi2 || (phi2 && ~(address[7] && address[6]) && via)) ? 1'b0 : 1'b1;
 assign rom = ((phi2 && address[7] && address[6])) ? 1'b0 : 1'b1;
 assign oe = (~phi2 || rw) ? 1'b0 : 1'b1;
