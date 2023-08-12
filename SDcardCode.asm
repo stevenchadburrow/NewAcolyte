@@ -107,6 +107,9 @@ basic_keys		.EQU $03A0 ; 16 bytes long
 basic_keys_plus_one	.EQU $03A1 
 basic_wait_end		.EQU $03B0
 basic_wait_delete	.EQU $03B1
+sub_sdcard_initialize	.EQU $03B2 ; 3 bytes
+sub_sdcard_readblock	.EQU $03B5 ; 3 bytes
+sub_sdcard_writeblock	.EQU $03B8 ; 3 bytes
 ; unused
 command_string		.EQU $03C0 ; 64 bytes long
 
@@ -114,10 +117,6 @@ tetra_field		.EQU $0400 ; 256 bytes long
 
 basic_memory		.EQU $8000 ; 16KB available
 basic_memory_end	.EQU $C000 ; one past
-
-
-sdcard_initialize	.EQU $E4BD
-sdcard_readblock	.EQU $E594
 
 
 	.ORG $0000
@@ -134,7 +133,7 @@ sdcard_readblock	.EQU $E594
 	LDY #$00
 
 loop
-	JSR sdcard_readblock ; sdcard_readblock
+	JSR sub_sdcard_readblock ; sdcard_readblock
 
 	INC sdcard_block+1
 	INC sdcard_block+1
