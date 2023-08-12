@@ -210,7 +210,7 @@ command_string		.EQU $03C0 ; 64 bytes long
 tetra_field		.EQU $0400 ; 256 bytes long
 
 basic_memory		.EQU $8000 ; 16KB available
-basic_memory_end	.EQU $8100 ; one past
+basic_memory_end	.EQU $C000 ; one past
 
 
 
@@ -961,9 +961,9 @@ basic_line_seek_number_check
 	LDA basic_value3_low
 	STA sub_read+1
 	LDA basic_value3_high
-	STA sub_read+2	
+	STA sub_read+2
 basic_line_seek_check
-	LDA sub_read
+	JSR sub_read
 	CMP #$00
 	BEQ basic_line_new
 	LDA basic_wait_delete
@@ -1059,8 +1059,9 @@ basic_line_new_increment ; subroutine
 	LDA sub_write+2
 	CMP #>basic_memory_end
 	BNE basic_line_new_exit
+	LDY #$40
 	PLA
-	PLA ; does it ever reach here?
+	PLA
 basic_line_new_exit
 	RTS
 
