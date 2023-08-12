@@ -210,7 +210,7 @@ command_string		.EQU $03C0 ; 64 bytes long
 tetra_field		.EQU $0400 ; 256 bytes long
 
 basic_memory		.EQU $8000 ; 16KB available
-basic_memory_end	.EQU $C000 ; one past
+basic_memory_end	.EQU $8100 ; one past
 
 
 
@@ -229,6 +229,9 @@ vector_reset
 
 
 
+
+
+	.ORG $D600 ; setup, function keys, and help text
 
 setup
 	STZ printchar_inverse ; turn off inverse
@@ -329,7 +332,9 @@ setup_random_loop
 	CPX #$FF
 	BNE setup_random_loop
 
-	JMP setup_done
+	JSR basic_clear
+
+	RTS
 
 setup_random_code
 	.BYTE $AD
@@ -339,15 +344,6 @@ setup_random_code
 	.BYTE $18,$69,$11,$8D
 	.WORD sub_random_var
 	.BYTE $60
-
-setup_done
-
-	JSR basic_clear
-
-	RTS
-
-
-
 
 
 function_keys
@@ -395,9 +391,6 @@ function_keys_next5
 	NOP
 function_keys_exit
 	RTS
-
-
-
 
 
 intro
@@ -450,51 +443,148 @@ help_monitor_loop
 	LDA help_monitor_text,X
 	CMP #$00
 	BEQ help_monitor_exit
+	CMP #$17
+	BEQ help_monitor_location
 	JSR printchar
+help_monitor_increment
 	INX
 	BNE help_monitor_loop
 help_monitor_exit
 	LDA #$10
 	JSR printchar
 	RTS
+help_monitor_location
+	LDA #>help_monitor_text+$02
+	JSR help_print_hex
+	LDA #<help_monitor_text+$02
+	JSR help_print_hex
+	LDA #"."
+	JSR printchar
+	LDA #>help_monitor_text+$11
+	JSR help_print_hex
+	LDA #<help_monitor_text+$11
+	JSR help_print_hex
+	JMP help_monitor_increment
 help_monitor_text
 	.BYTE $10,$0D
-	.BYTE "Monitor"
+	.BYTE "Monitor "
+	.BYTE "Examples"
 	.BYTE $0D
-	.BYTE "Help Men"
-	.BYTE "u Under "
-	.BYTE "Construc"
-	.BYTE "tion"
-	.BYTE $0D
+	.BYTE "00>0000"
+	.BYTE ".000FP",$3A
+	.BYTE "EE0F0060"
+	.BYTE ",LJJJ000"
+	.BYTE "F;",$0D
+	.BYTE "0000<",$17
+	.BYTE "M,0000.0"
+	.BYTE "00FL",$0D
 	.BYTE $00
 
 help_basic	
-	LDX #$00
+	LDA #<help_basic_text
+	STA sub_read+1
+	LDA #>help_basic_text
+	STA sub_read+2
 help_basic_loop
-	LDA help_basic_text,X
+	JSR sub_read
 	CMP #$00
 	BEQ help_basic_exit
 	JSR printchar
-	INX
+	INC sub_read+1
 	BNE help_basic_loop
+	INC sub_read+2	
+	JMP help_basic_loop
 help_basic_exit
 	RTS
 help_basic_text
 	.BYTE $10,$0D
-	.BYTE "BASIC"
+	.BYTE "BASIC Ke"
+	.BYTE "ywords",$0D
+	.BYTE "VAR, PRI"
+	.BYTE "NT, SCAN"
+	.BYTE ", NUM,",$0D
+	.BYTE "IF, END,"
+	.BYTE " GOTO, M"
+	.BYTE "EM, QUIT"
+	.BYTE ",",$0D
+	.BYTE "LIST, RU"
+	.BYTE "N, DELET"
+	.BYTE "E, CLEAR"
 	.BYTE $0D
-	.BYTE "Help Men"
-	.BYTE "u Under "
-	.BYTE "Construc"
-	.BYTE "tion"
+	.BYTE "BASIC Ex"
+	.BYTE "ample",$0D
+	.BYTE "10 PRINT"
+	.BYTE " ",$22
+	.BYTE "NUM?",$22,$0D
+	.BYTE "20 NUM X"
 	.BYTE $0D
+	.BYTE "30 VAR A"
+	.BYTE " = 2",$0D
+	.BYTE "40 PRINT"
+	.BYTE " A ",$3A
+	.BYTE " PRINT "
+	.BYTE $22,$5C,$22,$0D
+	.BYTE "50 VAR A"
+	.BYTE " = A + 1"
+	.BYTE $0D
+	.BYTE "60 IF A "
+	.BYTE "> X ",$3A
+	.BYTE " QUIT ",$3A
+	.BYTE " END",$0D
+	.BYTE "70 VAR B"
+	.BYTE " = A - 1"
+	.BYTE $0D
+	.BYTE "80 IF A "
+	.BYTE $25," B ="
+	.BYTE " 0 ",$3A
+	.BYTE " GOTO 5"
+	.BYTE "0 ",$3A
+	.BYTE " END",$0D
+	.BYTE "90 VAR B"
+	.BYTE " = B - 1"
+	.BYTE $0D
+	.BYTE "100 IF B"
+	.BYTE " = 1 ",$3A
+	.BYTE " GOTO 40"
+	.BYTE " ",$3A
+	.BYTE " END",$0D
+	.BYTE "110 GOTO"
+	.BYTE " 80",$0D
+	.BYTE "RUN",$0D
 	.BYTE $00
 
+help_print_hex
+	PHA
+	AND #%11110000
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	ROR A
+	JSR help_print_hex_compare
+	PLA
+	AND #%00001111
+	JSR help_print_hex_compare
+	RTS
+help_print_hex_compare
+	CLC
+	CMP #$0A
+	BCC help_print_hex_number
+	SEC
+	SBC #$0A
+	CLC
+	ADC #$41
+	JSR printchar
+	RTS
+help_print_hex_number
+	CLC
+	ADC #$30
+	JSR printchar
+	RTS
 
 
 
-
-	.ORG $D800 ; basic
+	.ORG $DA00 ; basic
 
 
 basic
@@ -970,7 +1060,7 @@ basic_line_new_increment ; subroutine
 	CMP #>basic_memory_end
 	BNE basic_line_new_exit
 	PLA
-	PLA
+	PLA ; does it ever reach here?
 basic_line_new_exit
 	RTS
 
@@ -1162,19 +1252,38 @@ basic_list
 	DEC printchar_y ; shift output up
 	LDA #" "
 	JSR basic_search_character
+	JSR basic_search_value
+	LDA basic_value1_low
+	PHA
+	LDA basic_value1_high
+	PHA
+	INY
+	JSR basic_search_value
+	LDA basic_value1_high
+	BNE basic_list_nonzero
+	LDA basic_value1_low
+	BNE basic_list_nonzero
+	LDA #$FF
+	STA basic_value3_low
+	STA basic_value3_high
+	JMP basic_list_nonzero_done
+basic_list_nonzero
+	LDA basic_value1_low
+	STA basic_value3_low
+	LDA basic_value1_high
+	STA basic_value3_high
+basic_list_nonzero_done
+	PLA
+	STA basic_value2_high
+	PLA
+	STA basic_value2_low 
+	LDA #$3A ; colon
+	JSR basic_search_character 
 	LDA #<basic_memory
 	STA sub_read+1
 	LDA #>basic_memory
 	STA sub_read+2
-	
-	; make basic_value2 and basic_value3 the first and last to print
-	; could use basic_search_value twice?
-	STZ basic_value2_low
-	STZ basic_value2_high
-	LDA #$FF
-	STA basic_value3_low
-	STA basic_value3_high
-
+	STZ basic_character
 basic_list_loop
 	JSR basic_escape_check
 	JSR sub_read
@@ -1187,7 +1296,15 @@ basic_list_increment
 basic_list_continue
 	CMP #$17
 	BEQ basic_list_line
+	PHA
+	LDA basic_character
+	CMP #$01
+	BNE basic_list_postprint
+	PLA
 	JSR printchar
+	PHA
+basic_list_postprint
+	PLA
 	LDA sub_read+2
 	CMP #>basic_memory_end
 	BNE basic_list_loop
@@ -1204,19 +1321,19 @@ basic_list_next
 	STA basic_value1_high
 	CLC
 	CMP basic_value2_high
-	BCC basic_list_jump
+	BCC basic_list_jump_low
 	LDA basic_value1_low
 	CLC
 	CMP basic_value2_low
-	BCC basic_list_jump
+	BCC basic_list_jump_low
 	LDA basic_value3_high
 	CLC
 	CMP basic_value1_high
-	BCC basic_list_jump
+	BCC basic_list_jump_high
 	LDA basic_value3_low
 	CLC
 	CMP basic_value1_low
-	BCC basic_list_jump
+	BCC basic_list_jump_high
 	LDA #$0D
 	JSR printchar
 	LDA basic_value2_low
@@ -1236,8 +1353,16 @@ basic_list_next
 	STA basic_value2_high
 	PLA
 	STA basic_value2_low
-basic_list_jump
+	LDA #$01
+	STA basic_character
+	JMP basic_list_increment
+basic_list_jump_low
 	LDA #$00
+	STA basic_character
+	JMP basic_list_increment
+basic_list_jump_high
+	LDA #$02
+	STA basic_character
 	JMP basic_list_increment
 
 
@@ -2029,7 +2154,7 @@ basic_mod_store
 
 
 
-	.ORG $E400 ; sdcard functions
+	.ORG $E600 ; sdcard functions
 
 sdcard_enable
 	PHA
