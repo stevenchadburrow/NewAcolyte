@@ -229,6 +229,7 @@ vector_reset
 
 
 
+	
 
 
 	.ORG $D600 ; setup, function keys, and help text
@@ -388,8 +389,25 @@ function_keys_next4
 	BNE function_keys_exit ; successful exit
 	JMP vector_reset ; error exit
 function_keys_next5
-	NOP
+	CMP #$0E ; F5, sdcard_save
+	BNE function_keys_next6
+	LDA #$00
+	JSR sdcard_saveload
+	CMP #$FF
+	BEQ function_keys_exit ; successful exit
+	JMP vector_reset ; error exit
+function_keys_next6
+	CMP #$0F ; F6, sdcard_load
+	BNE function_keys_next7
+	LDA #$01
+	JSR sdcard_saveload
+	CMP #$FF
+	BEQ function_keys_exit ; successful exit
+	JMP vector_reset ; error exit
+function_keys_next7
+	RTS
 function_keys_exit
+	LDA #$00
 	RTS
 
 
@@ -433,13 +451,18 @@ menu_exit
 	RTS
 menu_text
 	.BYTE "ESC=Brea"
-	.BYTE "k, F12=H"
-	.BYTE "elp",$0D,$00
+	.BYTE "k, F5=Sa"
+	.BYTE "ve, F6=L"
+	.BYTE "oad, F12"
+	.BYTE "=Help",$0D,$00
 
 
 help_monitor	
 	LDX #$00
 help_monitor_loop
+	JSR inputchar
+	CMP #$1B
+	BEQ help_monitor_exit
 	LDA help_monitor_text,X
 	CMP #$00
 	BEQ help_monitor_exit
@@ -486,6 +509,9 @@ help_basic
 	LDA #>help_basic_text
 	STA sub_read+2
 help_basic_loop
+	JSR inputchar
+	CMP #$1B
+	BEQ help_monitor_exit
 	JSR sub_read
 	CMP #$00
 	BEQ help_basic_exit
@@ -1881,6 +1907,8 @@ basic_search_value
 basic_search_value_start
 	JSR basic_escape_check
 	LDA command_string,Y
+	CMP #"!" ; random
+	BEQ basic_search_value_random
 	CLC
 	CMP #$30 ; 0
 	BCC basic_search_value_list1
@@ -1888,6 +1916,12 @@ basic_search_value_start
 	CMP #$3A ; 9 + 1
 	BCS basic_search_value_list1
 	JMP basic_search_value_digit
+basic_search_value_random
+	CLC
+	JSR sub_random
+	STA basic_value4_low
+	STZ basic_value4_high
+	JMP basic_search_value_loop
 basic_search_value_list1
 	CLC
 	CMP #$41 ; A
@@ -2536,7 +2570,7 @@ sdcard_bootloader
 	CMP #$00
 	BEQ sdcard_bootloader_error
 	LDY #$00 ; high addr
-	LDX #$00 ; low addr
+	LDX #$40 ; low addr
 	JSR sdcard_readblock
 	CMP #$00
 	BEQ sdcard_bootloader_error
@@ -2553,6 +2587,49 @@ sdcard_bootloader_error
 	PLY
 	PLX
 	LDA #$00 ; returns $00 for error
+	RTS
+
+
+; A = $00 to write, A = $01 to read, returns $FF on success
+sdcard_saveload
+	PHX
+	PHA
+	LDA #$00
+	STA sdcard_block+0
+	LDA #$80
+	STA sdcard_block+1
+	LDX #$00
+	LDY #$00
+	JSR sdcard_initialize
+	CMP #00
+	BEQ sdcard_saveload_exit
+sdcard_saveload_loop
+	JSR inputchar
+	CMP #$1B
+	BEQ sdcard_saveload_exit
+	PLA
+	BEQ sdcard_saveload_write
+	PHA
+	JSR sdcard_readblock
+	JMP sdcard_saveload_done
+sdcard_saveload_write
+	PHA
+	JSR sdcard_writeblock
+sdcard_saveload_done
+	CMP #$00
+	BEQ sdcard_saveload_exit
+	INC sdcard_block+1
+	INC sdcard_block+1
+	INX
+	INX
+	CPX #$40
+	BNE sdcard_saveload_loop
+	PLA
+	LDA #$FF ; success
+	PHA
+sdcard_saveload_exit
+	PLA
+	PLX
 	RTS
 
 
