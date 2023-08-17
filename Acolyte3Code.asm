@@ -275,185 +275,16 @@ vector_reset
 	
 
 
-mouse
-	PHA
-	LDA mouse_prev_buttons
-	CMP mouse_buttons
-	BNE mouse_draw
-	LDA mouse_prev_x
-	CMP mouse_pos_x
-	BNE mouse_draw
-	LDA mouse_prev_y
-	CMP mouse_pos_y
-	BNE mouse_draw
-	JMP mouse_exit
-mouse_draw
-	LDA #$10
-	JSR printchar
-	LDA mouse_pos_x
-	STA mouse_prev_x
-	AND #%11111100
-	CLC
-	ROR A
-	ROR A
-	STA printchar_x
-	LDA mouse_pos_y
-	STA mouse_prev_y
-	EOR #$FF
-	INC A
-	AND #%11111000
-	CLC
-	ROR A
-	ROR A
-	ROR A
-	STA printchar_y
-	LDA mouse_buttons
-	STA mouse_prev_buttons
-	AND #%00000001
-	BEQ mouse_space
-	LDA #"*"
-	JSR printchar
-	LDA #$08 ; backspace
-	JSR printchar
-	JMP mouse_cursor
-mouse_space
-	LDA mouse_buttons
-	AND #%00000010
-	BEQ mouse_cursor
-	LDA #" "
-	JSR printchar
-	LDA #$08 ; backspace
-	JSR printchar
-mouse_cursor
-	LDA #$10
-	JSR printchar
-mouse_exit
-	PLA
-	RTS
-
-
-
-; upon move/button change
-mouse_isr
-	LDA #%00000001
-	STA via_ifr				; clear CA2 interrupt flag
-	LDA mouse_state
-	INC mouse_state
-	CLC
-	CMP #$1F
-	BEQ mouse_isr_output
-	BCS mouse_isr_normal
-	CLC
-	CMP #$16
-	BCC mouse_isr_normal
-	CMP #$1E
-	BCS mouse_isr_parity
-	LDA via_pah
-	ROR mouse_data
-	BCC mouse_isr_zero
-	ORA #%01000000
-	BCS mouse_isr_one
-mouse_isr_zero
-	AND #%10111111
-mouse_isr_one
-	STA via_pah
-	PLA
-	RTI
-mouse_isr_parity
-	LDA via_pah
-	AND #%10111111
-	STA via_pah
-	PLA
-	RTI
-mouse_isr_input
-	LDA #%00001100 ; CA2 low output, CA1 falling edge
-	STA via_pcr
-	JSR longdelay ; 100ms minimum
-	JSR longdelay
-	JSR longdelay
-	JSR longdelay
-	LDA #%01000000 ; PA6 is output now
-	STA via_da
-	LDA #%00000000
-	STA via_pah
-	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
-	STA via_pcr
-	LDA #$F4 ; enable code
-	STA mouse_data
-	JMP mouse_isr_store
-mouse_isr_output
-	LDA #%00000000 ; PA is all input
-	STA via_da
-	DEC mouse_counter
-	DEc mouse_counter
-	JMP mouse_isr_normal
-mouse_isr_normal
-	LDA via_pah
-	AND #%01000000				; read PA6 (without handshake)
-	CLC	
-	ROL A
-	CLC
-	ROR mouse_data				; shift mouse_code
-	CLC
-	ADC mouse_data				; add the PA6 bit into mouse_code
-	STA mouse_data
-	INC mouse_counter			; increment mouse_counter
-	LDA mouse_counter
-	CMP #$09 ; data ready			; 1 start bit, 8 data bits = 9 bits until real data ready
-	BNE mouse_isr_check
-mouse_isr_store
-	LDA mouse_state
-	CLC
-	CMP #$2D	
-	BCC mouse_isr_exit
-	CMP #$35
-	BEQ mouse_isr_buttons
-	CMP #$40
-	BEQ mouse_isr_pos_x
-	CMP #$4B
-	BEQ mouse_isr_pos_y
-	; error
-	PLA
-	RTI					; and exit
-mouse_isr_check
-	CMP #$0B ; reset counter		; 1 start bit, 8 data bits, 1 parity bit, 1 stop bit = 11 bits to complete a full signal
-	BEQ mouse_isr_reset
-	PLA
-	RTI					; and exit
-mouse_isr_reset
-	STZ mouse_counter			; reset the counter
-	LDA mouse_state
-	CMP #$16
-	BEQ mouse_isr_input
-mouse_isr_exit
-	PLA
-	RTI
-mouse_isr_buttons
-	LDA mouse_data
-	STA mouse_buttons
-	PLA
-	RTI
-mouse_isr_pos_x
-	LDA mouse_data
-	CLC
-	ADC mouse_pos_x
-	STA mouse_pos_x
-	PLA
-	RTI
-mouse_isr_pos_y
-	LDA mouse_data
-	CLC
-	ADC mouse_pos_y
-	STA mouse_pos_y
-	LDA #$2A
-	STA mouse_state
-	PLA	
-	RTI
 
 
 
 
-	.ORG $D600 ; setup, function keys, and help text
+
+
+
+
+
+	.ORG $D400 ; setup, function keys, and help text
 
 setup
 	STZ printchar_inverse ; turn off inverse
@@ -810,7 +641,7 @@ help_print_hex_number
 
 
 
-	.ORG $DA00 ; basic
+	.ORG $D800 ; basic
 
 
 basic
@@ -2393,7 +2224,7 @@ basic_mod_store
 
 
 
-	.ORG $E600 ; sdcard functions
+	.ORG $E400 ; sdcard functions
 
 sdcard_enable
 	PHA
@@ -2819,7 +2650,7 @@ sdcard_saveload_exit
 
 
 	
-	.ORG $E900 ; tetra
+	.ORG $E700 ; tetra
 
 tetra_color_fore	.EQU $55
 tetra_color_back	.EQU $AA
@@ -3892,7 +3723,7 @@ colornum_10_count
 
 
 
-	.ORG $F100 ; scratchpad and monitor
+	.ORG $EF00 ; scratchpad and monitor
 
 scratchpad
 	LDA #$E1 ; produces greyscale
@@ -3905,7 +3736,7 @@ scratchpad_loop
 	CLC
 	JSR sub_random ; helps randomize
 
-	JSR mouse
+	JSR scratchpad_mouse
 
 	JSR inputchar
 	CMP #$00
@@ -3931,6 +3762,62 @@ scratchpad_escape
 	LDA #$10 ; cursor
 	JSR printchar
 	JMP scratchpad_loop
+
+scratchpad_mouse
+	PHA
+	LDA mouse_prev_buttons
+	CMP mouse_buttons
+	BNE scratchpad_mouse_draw
+	LDA mouse_prev_x
+	CMP mouse_pos_x
+	BNE scratchpad_mouse_draw
+	LDA mouse_prev_y
+	CMP mouse_pos_y
+	BNE scratchpad_mouse_draw
+	JMP scratchpad_mouse_exit
+scratchpad_mouse_draw
+	LDA #$10
+	JSR printchar
+	LDA mouse_pos_x
+	STA mouse_prev_x
+	AND #%11111100
+	CLC
+	ROR A
+	ROR A
+	STA printchar_x
+	LDA mouse_pos_y
+	STA mouse_prev_y
+	EOR #$FF
+	INC A
+	AND #%11111000
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	STA printchar_y
+	LDA mouse_buttons
+	STA mouse_prev_buttons
+	AND #%00000001
+	BEQ scratchpad_mouse_space
+	LDA #"*"
+	JSR printchar
+	LDA #$08 ; backspace
+	JSR printchar
+	JMP scratchpad_mouse_cursor
+scratchpad_mouse_space
+	LDA mouse_buttons
+	AND #%00000010
+	BEQ scratchpad_mouse_cursor
+	LDA #" "
+	JSR printchar
+	LDA #$08 ; backspace
+	JSR printchar
+scratchpad_mouse_cursor
+	LDA #$10
+	JSR printchar
+scratchpad_mouse_exit
+	PLA
+	RTS
 
 monitor
 	LDA #$E1 ; produces greyscale
@@ -4477,7 +4364,7 @@ monitor_single ; subroutine
 	RTS	
 
 
-	.ORG $F500 ; inputchar and printchar
+	.ORG $F400 ; inputchar and printchar
 
 inputchar
 	PHY
@@ -4854,7 +4741,7 @@ longdelay_loop
 	RTS
 
 
-	.ORG $F800 ; key tables
+	.ORG $F700 ; key tables
 
 ; converts PS/2 codes to ASCII
 ; 256 bytes
@@ -5088,6 +4975,126 @@ key_bitmap
 	.BYTE $F3,$3C,$F3,$F0,$00,$00,$00,$00
 	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
 	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
+
+	
+	.ORG $FE00 ; mouse interrupt code
+
+; upon move/button change
+mouse_isr
+	LDA #%00000001
+	STA via_ifr				; clear CA2 interrupt flag
+	LDA mouse_state
+	INC mouse_state
+	CLC
+	CMP #$1F
+	BEQ mouse_isr_output
+	BCS mouse_isr_normal
+	CLC
+	CMP #$16
+	BCC mouse_isr_normal
+	CMP #$1E
+	BCS mouse_isr_parity
+	LDA via_pah
+	ROR mouse_data
+	BCC mouse_isr_zero
+	ORA #%01000000
+	BCS mouse_isr_one
+mouse_isr_zero
+	AND #%10111111
+mouse_isr_one
+	STA via_pah
+	PLA
+	RTI
+mouse_isr_parity
+	LDA via_pah
+	AND #%10111111
+	STA via_pah
+	PLA
+	RTI
+mouse_isr_input
+	LDA #%00001100 ; CA2 low output, CA1 falling edge
+	STA via_pcr
+	JSR longdelay ; 100ms minimum
+	JSR longdelay
+	JSR longdelay
+	JSR longdelay
+	LDA #%01000000 ; PA6 is output now
+	STA via_da
+	LDA #%00000000
+	STA via_pah
+	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
+	STA via_pcr
+	LDA #$F4 ; enable code
+	STA mouse_data
+	JMP mouse_isr_store
+mouse_isr_output
+	LDA #%00000000 ; PA is all input
+	STA via_da
+	DEC mouse_counter
+	DEc mouse_counter
+	JMP mouse_isr_normal
+mouse_isr_normal
+	LDA via_pah
+	AND #%01000000				; read PA6 (without handshake)
+	CLC	
+	ROL A
+	CLC
+	ROR mouse_data				; shift mouse_code
+	CLC
+	ADC mouse_data				; add the PA6 bit into mouse_code
+	STA mouse_data
+	INC mouse_counter			; increment mouse_counter
+	LDA mouse_counter
+	CMP #$09 ; data ready			; 1 start bit, 8 data bits = 9 bits until real data ready
+	BNE mouse_isr_check
+mouse_isr_store
+	LDA mouse_state
+	CLC
+	CMP #$2D	
+	BCC mouse_isr_exit
+	CMP #$35
+	BEQ mouse_isr_buttons
+	CMP #$40
+	BEQ mouse_isr_pos_x
+	CMP #$4B
+	BEQ mouse_isr_pos_y
+	; error
+	PLA
+	RTI					; and exit
+mouse_isr_check
+	CMP #$0B ; reset counter		; 1 start bit, 8 data bits, 1 parity bit, 1 stop bit = 11 bits to complete a full signal
+	BEQ mouse_isr_reset
+	PLA
+	RTI					; and exit
+mouse_isr_reset
+	STZ mouse_counter			; reset the counter
+	LDA mouse_state
+	CMP #$16
+	BEQ mouse_isr_input
+mouse_isr_exit
+	PLA
+	RTI
+mouse_isr_buttons
+	LDA mouse_data
+	STA mouse_buttons
+	PLA
+	RTI
+mouse_isr_pos_x
+	LDA mouse_data
+	CLC
+	ADC mouse_pos_x
+	STA mouse_pos_x
+	PLA
+	RTI
+mouse_isr_pos_y
+	LDA mouse_data
+	CLC
+	ADC mouse_pos_y
+	STA mouse_pos_y
+	LDA #$2A
+	STA mouse_state
+	PLA	
+	RTI
 
 
 	.ORG $FF00 ; keyboard interrupt code and joystick interrupt code
