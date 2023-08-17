@@ -221,7 +221,9 @@ basic_operator		.EQU $02F1
 basic_wait_end		.EQU $02F2
 basic_wait_delete	.EQU $02F3
 
-; unused starting at $02F4
+scratchpad_lastchar	.EQU $03F4
+
+; unused starting at $02F5
 
 clock_low		.EQU $02FE
 clock_high		.EQU $02FF
@@ -3729,6 +3731,9 @@ scratchpad
 	LDA #$E1 ; produces greyscale
 	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
 
+	LDA #"*"
+	STA scratchpad_lastchar
+
 	LDA #$10 ; cursor
 	JSR printchar
 
@@ -3751,6 +3756,7 @@ scratchpad_loop
 	CMP #$1B ; escape
 	BEQ scratchpad_escape
 
+	STA scratchpad_lastchar
 	JSR printchar ; print actual character
 	LDA #$10 ; cursor
 	JSR printchar
@@ -3799,7 +3805,7 @@ scratchpad_mouse_draw
 	STA mouse_prev_buttons
 	AND #%00000001
 	BEQ scratchpad_mouse_space
-	LDA #"*"
+	LDA scratchpad_lastchar
 	JSR printchar
 	LDA #$08 ; backspace
 	JSR printchar
