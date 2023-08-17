@@ -116,6 +116,9 @@ via_pb			.EQU via+$00
 via_pa			.EQU via+$01
 via_db			.EQU via+$02
 via_da			.EQU via+$03
+via_t1cl		.EQU via+$04
+via_t1ch		.EQU via+$05
+via_acr			.EQU via+$0B
 via_pcr			.EQU via+$0C
 via_ifr			.EQU via+$0D
 via_ier			.EQU via+$0E
@@ -138,73 +141,101 @@ joy_select_inv		.EQU %11110111
 
 key_array		.EQU $0200
 
-key_write		.EQU $0300
-key_read		.EQU $0301
-key_data		.EQU $0302
-key_counter		.EQU $0303
-key_release		.EQU $0304
-key_extended		.EQU $0305
-key_shift		.EQU $0306
-key_capslock		.EQU $0307
-key_alt_control		.EQU $0308
-sub_jump		.EQU $0309 ; 3 bytes long
-sub_read		.EQU $030C ; 4 bytes long
-sub_index		.EQU $0310 ; 4 bytes long
-sub_write		.EQU $0314 ; 4 bytes long
-vector_irq		.EQU $0318 ; 3 bytes long
-sub_random_var		.EQU $031B
-vector_nmi		.EQU $031C ; 3 bytes long
-sub_random		.EQU $031F ; 16 bytes long
-sub_inputchar		.EQU $0330 ; 3 bytes long
-printchar_inverse	.EQU $0333 ; either $00 or $FF
-sub_printchar		.EQU $0334 ; 3 bytes long
-printchar_storage	.EQU $0337
-printchar_x		.EQU $0338 ; from $00 to $3F
-printchar_y		.EQU $0339 ; from $00 to $1D
-printchar_foreground	.EQU $033A ; either $00, $55, $AA, or $FF
-printchar_background	.EQU $033B ; either $00, $55, $AA, or $FF
-printchar_read		.EQU $033C ; 4 bytes long
-printchar_write		.EQU $0340 ; 4 bytes long
-colorchar_input		.EQU $0344
-colorchar_output	.EQU $0345
-monitor_mode		.EQU $0346
-monitor_nibble		.EQU $0347
-monitor_values		.EQU $0358 ; 8 bytes long
-tetra_score_low		.EQU $0350
-tetra_score_high	.EQU $0351
-tetra_piece		.EQU $0352
-tetra_piece_next	.EQU $0353
-tetra_location		.EQU $0354
-tetra_speed		.EQU $0355
-tetra_overscan		.EQU $0356
-tetra_joy_prev		.EQU $0357
-tetra_values		.EQU $0358 ; 3 bytes
-joy_buttons		.EQU $035B
-sdcard_block		.EQU $035C ; 2 bytes 
-clock_low		.EQU $035E
-clock_high		.EQU $035F
-basic_variables_low	.EQU $0360 ; 26 bytes
-basic_variables_high	.EQU $037A ; 26 bytes
-basic_line_low		.EQU $0394
-basic_line_high		.EQU $0395
-basic_value1_low	.EQU $0396
-basic_value1_high	.EQU $0397
-basic_value2_low	.EQU $0398
-basic_value2_high	.EQU $0399
-basic_value3_low	.EQU $039A
-basic_value3_high	.EQU $039B
-basic_value4_low	.EQU $039C
-basic_value4_high	.EQU $039D
-basic_character		.EQU $039E
-basic_operator		.EQU $039F
-basic_keys		.EQU $03A0 ; 16 bytes long
-basic_keys_plus_one	.EQU $03A1 
-basic_wait_end		.EQU $03B0
-basic_wait_delete	.EQU $03B1
-sub_sdcard_initialize	.EQU $03B2 ; 3 bytes
-sub_sdcard_readblock	.EQU $03B5 ; 3 bytes
-sub_sdcard_writeblock	.EQU $03B8 ; 3 bytes
-; unused
+key_write		.EQU $0280
+key_read		.EQU $0281
+key_data		.EQU $0282
+key_counter		.EQU $0283
+key_release		.EQU $0284
+key_extended		.EQU $0285
+key_shift		.EQU $0286
+key_capslock		.EQU $0287
+key_alt_control		.EQU $0288
+
+mouse_buttons		.EQU $0289
+mouse_pos_x		.EQU $028A
+mouse_pos_y		.EQU $028B
+mouse_prev_buttons	.EQU $028C
+mouse_prev_x		.EQU $028D
+mouse_prev_y		.EQU $028E
+mouse_data		.EQU $028F
+mouse_counter		.EQU $0290
+mouse_state		.EQU $0291
+
+joy_buttons		.EQU $0292
+
+tetra_score_low		.EQU $0293
+tetra_score_high	.EQU $0294
+tetra_piece		.EQU $0295
+tetra_piece_next	.EQU $0296
+tetra_location		.EQU $0297
+tetra_speed		.EQU $0298
+tetra_overscan		.EQU $0299
+tetra_joy_prev		.EQU $029A
+tetra_values		.EQU $029B ; 3 bytes
+
+monitor_mode		.EQU $029E
+monitor_nibble		.EQU $029F
+monitor_values		.EQU $02A0 ; 8 bytes long
+
+sub_jump		.EQU $02A8 ; 3 bytes long
+sub_random_var		.EQU $02AB
+sub_read		.EQU $02AC ; 4 bytes long
+sub_index		.EQU $02B0 ; 4 bytes long
+sub_write		.EQU $02B4 ; 4 bytes long
+
+vector_irq		.EQU $02B8 ; 4 bytes long
+vector_nmi		.EQU $02BC ; 4 bytes long
+
+sub_inputchar		.EQU $02C0 ; 4 bytes long
+sub_printchar		.EQU $02C4 ; 4 bytes long
+
+printchar_x		.EQU $02C8 ; from $00 to $3F
+printchar_y		.EQU $02C9 ; from $00 to $1D
+printchar_foreground	.EQU $02CA ; either $00, $55, $AA, or $FF
+printchar_background	.EQU $02CB ; either $00, $55, $AA, or $FF
+printchar_inverse	.EQU $02CC ; either $00 or $FF
+printchar_storage	.EQU $02CD
+colorchar_input		.EQU $02CE
+colorchar_output	.EQU $02CF
+printchar_read		.EQU $02D0 ; 4 bytes long
+printchar_write		.EQU $02D4 ; 4 bytes long
+
+sub_sdcard_initialize	.EQU $02D8 ; 4 bytes
+sub_sdcard_readblock	.EQU $02DC ; 4 bytes
+sub_sdcard_writeblock	.EQU $02E0 ; 4 bytes
+
+sdcard_block		.EQU $02E4 ; 2 bytes 
+
+basic_line_low		.EQU $02E6
+basic_line_high		.EQU $02E7
+basic_value1_low	.EQU $02E8
+basic_value1_high	.EQU $02E9
+basic_value2_low	.EQU $02EA
+basic_value2_high	.EQU $02EB
+basic_value3_low	.EQU $02EC
+basic_value3_high	.EQU $02ED
+basic_value4_low	.EQU $02EE
+basic_value4_high	.EQU $02EF
+basic_character		.EQU $02F0
+basic_operator		.EQU $02F1
+basic_wait_end		.EQU $02F2
+basic_wait_delete	.EQU $02F3
+
+; unused starting at $02F4
+
+clock_low		.EQU $02FE
+clock_high		.EQU $02FF
+
+sub_random		.EQU $0300 ; 18 bytes long
+
+basic_variables_low	.EQU $0312 ; 26 bytes
+basic_variables_high	.EQU $032C ; 26 bytes
+
+basic_keys		.EQU $0346 ; 16 bytes long
+basic_keys_plus_one	.EQU $0347
+
+; unused starting at $0356
+
 command_string		.EQU $03C0 ; 64 bytes long
 
 tetra_field		.EQU $0400 ; 256 bytes long
@@ -220,37 +251,6 @@ basic_memory_end	.EQU $C000 ; one past
 	.ORG $C000 ; start of code
 
 vector_reset
-	JSR setup
-
-	JSR key_init
-	JSR joy_init
-
-	JSR function_keys_scratchpad
-
-
-
-	
-
-
-	.ORG $D600 ; setup, function keys, and help text
-
-setup
-	STZ printchar_inverse ; turn off inverse
-	LDA #$FF ; white 
-	STA printchar_foreground
-	LDA #$00 ; black
-	STA printchar_background
-
-	LDA #%10111111 ; PB is mostly output
-	STA via_db
-	LDA #%00000000 ; set output pins to low
-	STA via_pb
-	LDA #%00000000 ; PA is all input
-	STA via_da
-	LDA #%00001110 ; CA2 high, CA1 falling edge
-	STA via_pcr
-	LDA #%10000010 ; interrupts on CA1
-	STA via_ier
 
 	LDA #$4C ; JMPa
 	STA vector_irq+0
@@ -265,6 +265,202 @@ setup
 	STA vector_nmi+1
 	LDA #>joy_isr
 	STA vector_nmi+2
+
+	JSR via_init
+	JSR joy_init
+
+	JSR setup
+
+	JSR function_keys_scratchpad
+	
+
+
+mouse
+	PHA
+	LDA mouse_prev_buttons
+	CMP mouse_buttons
+	BNE mouse_draw
+	LDA mouse_prev_x
+	CMP mouse_pos_x
+	BNE mouse_draw
+	LDA mouse_prev_y
+	CMP mouse_pos_y
+	BNE mouse_draw
+	JMP mouse_exit
+mouse_draw
+	LDA #$10
+	JSR printchar
+	LDA mouse_pos_x
+	STA mouse_prev_x
+	AND #%11111100
+	CLC
+	ROR A
+	ROR A
+	STA printchar_x
+	LDA mouse_pos_y
+	STA mouse_prev_y
+	EOR #$FF
+	INC A
+	AND #%11111000
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	STA printchar_y
+	LDA mouse_buttons
+	STA mouse_prev_buttons
+	AND #%00000001
+	BEQ mouse_space
+	LDA #"*"
+	JSR printchar
+	LDA #$08 ; backspace
+	JSR printchar
+	JMP mouse_cursor
+mouse_space
+	LDA mouse_buttons
+	AND #%00000010
+	BEQ mouse_cursor
+	LDA #" "
+	JSR printchar
+	LDA #$08 ; backspace
+	JSR printchar
+mouse_cursor
+	LDA #$10
+	JSR printchar
+mouse_exit
+	PLA
+	RTS
+
+
+
+; upon move/button change
+mouse_isr
+	LDA #%00000001
+	STA via_ifr				; clear CA2 interrupt flag
+	LDA mouse_state
+	INC mouse_state
+	CLC
+	CMP #$1F
+	BEQ mouse_isr_output
+	BCS mouse_isr_normal
+	CLC
+	CMP #$16
+	BCC mouse_isr_normal
+	CMP #$1E
+	BCS mouse_isr_parity
+	LDA via_pah
+	ROR mouse_data
+	BCC mouse_isr_zero
+	ORA #%01000000
+	BCS mouse_isr_one
+mouse_isr_zero
+	AND #%10111111
+mouse_isr_one
+	STA via_pah
+	PLA
+	RTI
+mouse_isr_parity
+	LDA via_pah
+	AND #%10111111
+	STA via_pah
+	PLA
+	RTI
+mouse_isr_input
+	LDA #%00001100 ; CA2 low output, CA1 falling edge
+	STA via_pcr
+	JSR longdelay ; 100ms minimum
+	JSR longdelay
+	JSR longdelay
+	JSR longdelay
+	LDA #%01000000 ; PA6 is output now
+	STA via_da
+	LDA #%00000000
+	STA via_pah
+	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
+	STA via_pcr
+	LDA #$F4 ; enable code
+	STA mouse_data
+	JMP mouse_isr_store
+mouse_isr_output
+	LDA #%00000000 ; PA is all input
+	STA via_da
+	DEC mouse_counter
+	DEc mouse_counter
+	JMP mouse_isr_normal
+mouse_isr_normal
+	LDA via_pah
+	AND #%01000000				; read PA6 (without handshake)
+	CLC	
+	ROL A
+	CLC
+	ROR mouse_data				; shift mouse_code
+	CLC
+	ADC mouse_data				; add the PA6 bit into mouse_code
+	STA mouse_data
+	INC mouse_counter			; increment mouse_counter
+	LDA mouse_counter
+	CMP #$09 ; data ready			; 1 start bit, 8 data bits = 9 bits until real data ready
+	BNE mouse_isr_check
+mouse_isr_store
+	LDA mouse_state
+	CLC
+	CMP #$2D	
+	BCC mouse_isr_exit
+	CMP #$35
+	BEQ mouse_isr_buttons
+	CMP #$40
+	BEQ mouse_isr_pos_x
+	CMP #$4B
+	BEQ mouse_isr_pos_y
+	; error
+	PLA
+	RTI					; and exit
+mouse_isr_check
+	CMP #$0B ; reset counter		; 1 start bit, 8 data bits, 1 parity bit, 1 stop bit = 11 bits to complete a full signal
+	BEQ mouse_isr_reset
+	PLA
+	RTI					; and exit
+mouse_isr_reset
+	STZ mouse_counter			; reset the counter
+	LDA mouse_state
+	CMP #$16
+	BEQ mouse_isr_input
+mouse_isr_exit
+	PLA
+	RTI
+mouse_isr_buttons
+	LDA mouse_data
+	STA mouse_buttons
+	PLA
+	RTI
+mouse_isr_pos_x
+	LDA mouse_data
+	CLC
+	ADC mouse_pos_x
+	STA mouse_pos_x
+	PLA
+	RTI
+mouse_isr_pos_y
+	LDA mouse_data
+	CLC
+	ADC mouse_pos_y
+	STA mouse_pos_y
+	LDA #$2A
+	STA mouse_state
+	PLA	
+	RTI
+
+
+
+
+	.ORG $D600 ; setup, function keys, and help text
+
+setup
+	STZ printchar_inverse ; turn off inverse
+	LDA #$FF ; white 
+	STA printchar_foreground
+	LDA #$00 ; black
+	STA printchar_background
 
 	LDA #$AD ; LDAa
 	STA sub_read+0
@@ -405,6 +601,10 @@ function_keys_next6
 	BEQ function_keys_exit ; successful exit
 	JMP vector_reset ; error exit
 function_keys_next7
+	CMP #$07 ; F8, bell (not used)
+	BNE function_keys_next8
+	NOP
+function_keys_next8
 	RTS
 function_keys_exit
 	LDA #$00
@@ -872,6 +1072,11 @@ basic_commands_next10
 	JSR basic_mem
 	JMP basic_commands_success
 basic_commands_next11
+	CMP #"T" ; tune
+	BNE basic_commands_next12
+	JSR basic_tune
+	JMP basic_commands_success
+basic_commands_next12
 	NOP
 basic_commands_failure
 	LDA #$00
@@ -1394,15 +1599,11 @@ basic_list_jump_high
 
 
 basic_delete
-	LDA #" "
-	JSR basic_search_character
-	CMP #$00
-	BEQ basic_delete_exit
+	JSR basic_search_space
 	LDA #$FF
 	STA basic_wait_delete
 	JMP basic_line
 	STZ basic_wait_delete	
-basic_delete_exit
 	RTS
 
 
@@ -1426,10 +1627,7 @@ basic_clear_loop
 
 
 basic_var
-	LDA #" "
-	JSR basic_search_character
-	CMP #$00
-	BEQ basic_var_exit
+	JSR basic_search_space
 	JSR basic_search_letter
 	CMP #$00
 	BEQ basic_var_exit
@@ -1555,10 +1753,7 @@ basic_print_digit_skip
 	RTS
 
 basic_scan
-	LDA #" "
-	JSR basic_search_character
-	CMP #$00
-	BEQ basic_scan_exit
+	JSR basic_search_space
 	JSR basic_search_letter
 	CMP #$00
 	BEQ basic_scan_exit
@@ -1589,10 +1784,7 @@ basic_num
 	JSR printchar
 	LDA #$10 ; cursor
 	JSR printchar
-	LDA #" "
-	JSR basic_search_character
-	CMP #$00
-	BEQ basic_num_exit
+	JSR basic_search_space
 	JSR basic_search_letter
 	CMP #$00
 	BEQ basic_num_exit
@@ -1810,13 +2002,8 @@ basic_end
 	RTS
 
 
-
-
 basic_mem
-	LDA #" "
-	JSR basic_search_character
-	CMP #$00
-	BEQ basic_mem_exit
+	JSR basic_search_space
 	JSR basic_search_value
 	LDA command_string,Y
 	CMP #"<"
@@ -1853,11 +2040,18 @@ basic_mem_read
 	JSR sub_read
 	STA basic_variables_low,X
 	STZ basic_variables_high,X
-	RTS
 basic_mem_exit
 	RTS
 
 
+basic_tune
+	JSR basic_search_space
+	JSR basic_search_value
+	LDA basic_value1_low
+	STA via_t1cl
+	LDA basic_value1_high
+	STA via_t1ch
+	RTS
 
 
 
@@ -1878,6 +2072,16 @@ basic_search_character_loop
 	BCC basic_search_character_start
 basic_search_character_exit
 	LDA #$00
+	RTS
+
+basic_search_space
+	LDA #" "
+	JSR basic_search_character
+	CMP #$00
+	BNE basic_search_space_exit
+	PLA
+	PLA ; remove last return address
+basic_search_space_exit
 	RTS
 
 basic_search_letter
@@ -2241,25 +2445,6 @@ sdcard_toggle
 	PLA
 	RTS
 
-sdcard_longdelay
-	PHA
-	PHX
-	PHY
-	LDA #$FF ; arbitrary values
-	LDX #$80
-	LDY #$01
-sdcard_longdelay_loop
-	DEC A
-	BNE sdcard_longdelay_loop
-	DEX
-	BNE sdcard_longdelay_loop
-	DEY
-	BNE sdcard_longdelay_loop
-	PLY
-	PLX
-	PLA
-	RTS
-
 sdcard_sendbyte ; already in A
 	PHA
 	PHX
@@ -2326,7 +2511,7 @@ sdcard_pump
 	PHX
 	JSR sdcard_disable
 	JSR sdcard_output_high
-	JSR sdcard_longdelay
+	JSR longdelay
 	LDX #$50
 sdcard_pump_loop
 	JSR sdcard_toggle
@@ -2340,7 +2525,7 @@ sdcard_pump_loop
 sdcard_initialize
 	JSR sdcard_disable
 	JSR sdcard_pump
-	JSR sdcard_longdelay
+	JSR longdelay
 	JSR sdcard_enable
 	LDA #$40 ; CMD0 = 0x40 + 0x00 (0 in hex)
 	JSR sdcard_sendbyte
@@ -2357,7 +2542,7 @@ sdcard_initialize
 	JSR sdcard_disable
 	CMP #$01
 	BNE sdcard_initialize_error ; expecting 0x01
-	JSR sdcard_longdelay
+	JSR longdelay
 	JSR sdcard_pump
 	JSR sdcard_enable
 	LDA #$48 ; CMD8 = 0x40 + 0x08 (8 in hex)
@@ -2389,7 +2574,7 @@ sdcard_initialize_error
 	RTS
 sdcard_initialize_loop
 	JSR sdcard_pump
-	JSR sdcard_longdelay
+	JSR longdelay
 	JSR sdcard_enable
 	LDA #$77 ; CMD55 = 0x40 + 0x37 (55 in hex)
 	JSR sdcard_sendbyte
@@ -2407,7 +2592,7 @@ sdcard_initialize_loop
 	CMP #$01
 	BNE sdcard_initialize_error ; expecting 0x01
 	JSR sdcard_pump
-	JSR sdcard_longdelay
+	JSR longdelay
 	JSR sdcard_enable
 	LDA #$69 ; CMD41 = 0x40 + 0x29 (41 in hex)
 	JSR sdcard_sendbyte
@@ -2439,7 +2624,7 @@ sdcard_readblock
 	PHX
 	JSR sdcard_disable
 	JSR sdcard_pump
-	JSR sdcard_longdelay
+	JSR longdelay
 	JSR sdcard_enable
 	LDA #$51 ; CMD17 = 0x40 + 0x11 (17 in hex)
 	JSR sdcard_sendbyte
@@ -2502,7 +2687,7 @@ sdcard_writeblock
 	PHX
 	JSR sdcard_disable
 	JSR sdcard_pump
-	JSR sdcard_longdelay
+	JSR longdelay
 	JSR sdcard_enable
 	LDA #$58 ; CMD24 = 0x40 + 0x18 (24 in hex)
 	JSR sdcard_sendbyte
@@ -3720,6 +3905,8 @@ scratchpad_loop
 	CLC
 	JSR sub_random ; helps randomize
 
+	JSR mouse
+
 	JSR inputchar
 	CMP #$00
 	BEQ scratchpad_loop
@@ -4299,7 +4486,17 @@ inputchar
 	LDX key_read
 	CPX key_write
 	BEQ inputchar_exit
-	INC key_read
+
+	LDA key_read
+	INC A
+	STA key_read
+	CMP #$80
+	BNE inputchar_success
+	STZ key_read
+
+	;INC key_read
+
+inputchar_success
 	LDA key_array,X
 	CMP #$F0 ; release
 	BEQ inputchar_release
@@ -4374,6 +4571,7 @@ inputchar_ignore
 	STZ key_extended
 	LDA #$00
 	JMP inputchar_exit
+
 
 printchar
 	PHA
@@ -4636,6 +4834,25 @@ printchar_clearscreen_loop
 	STZ printchar_y
 	JMP printchar_exit
 
+longdelay
+	PHA
+	PHX
+	PHY
+	LDA #$FF ; arbitrary values
+	LDX #$80
+	LDY #$01
+longdelay_loop
+	DEC A
+	BNE longdelay_loop
+	DEX
+	BNE longdelay_loop
+	DEY
+	BNE longdelay_loop
+	PLY
+	PLX
+	PLA
+	RTS
+
 
 	.ORG $F800 ; key tables
 
@@ -4875,7 +5092,18 @@ key_bitmap
 
 	.ORG $FF00 ; keyboard interrupt code and joystick interrupt code
 
-key_init
+via_init
+	LDA #%10111111 ; PB is mostly output
+	STA via_db
+	LDA #%00000000 ; set output pins to low
+	STA via_pb
+	LDA #%00000000 ; PA is all input
+	STA via_da
+	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
+	STA via_pcr
+	LDA #%10000011 ; interrupts on CA1 and CA2
+	STA via_ier
+
 	STZ key_write
 	STZ key_read
 	STZ key_data
@@ -4886,6 +5114,23 @@ key_init
 	STZ key_capslock
 	STZ key_alt_control
 
+	LDA #$80
+	STA mouse_pos_x
+	STA mouse_pos_y
+	STA mouse_prev_x
+	STA mouse_prev_y
+	STZ mouse_buttons
+	STZ mouse_prev_buttons
+	STZ mouse_data
+	STZ mouse_counter
+	STZ mouse_state
+
+	LDA #%11000000 ; free run on T1 for audio
+	STA via_acr
+	
+	STZ via_t1cl ; zero out T1 counter to silence
+	STZ via_t1ch
+	
 	CLI
 
 	RTS
@@ -4895,7 +5140,9 @@ key_isr
 	PHA
 	LDA via_ifr
 	AND #%00000010				; check if it was CA1
-	BEQ key_isr_exit			; if not, just exit (for now)
+	BNE key_isr_start
+	JMP mouse_isr				; if not, it's the mouse
+key_isr_start	
 	LDA via_pa
 	AND #%10000000				; read PA7
 	CLC	
@@ -4911,7 +5158,13 @@ key_isr
 	PHX
 	LDX key_write
 	STA key_array,X				; put the key code into key_array
-	INC key_write
+	TXA
+	INC A
+	STA key_write
+	CMP #$80
+	BNE key_isr_success
+	STZ key_write
+key_isr_success
 	PLX
 	PLA
 	RTI					; and exit
@@ -4926,13 +5179,16 @@ key_isr_exit
 	PLA
 	RTI
 
+
+
+
 joy_init ; use at beginning
 	PHA
 	LDA #$FF
 	STA joy_buttons
 	LDA via_pb
 	ORA #joy_select ; now leave it high always for speed sake
-	STA via_pb 
+	STA via_pb
 	PLA
 	RTS
 

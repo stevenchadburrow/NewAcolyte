@@ -71,10 +71,10 @@ uint8_t RAM[65536]; // RAM
 uint8_t ROM[16384]; // ROM
 uint16_t READ_ONLY = 0xC000; // Read-only below this line
 uint16_t KEY_ARRAY = 0x0200; // need the location for keyboard buffer
-uint16_t KEY_POS_WRITE = 0x0300; // need the location for keyboard buffer
+uint16_t KEY_POS_WRITE = 0x0280; // need the location for keyboard buffer
 uint16_t VIA_PAGE = 0x0700; // full page of $FF
-uint16_t CLOCK_LOW = 0x0366;
-uint16_t CLOCK_HIGH = 0x0367;
+uint16_t CLOCK_LOW = 0x02FE;
+uint16_t CLOCK_HIGH = 0x02FF;
 
 float color[2][3];
 
@@ -850,12 +850,16 @@ void handleKeys(GLFWwindow *window, int key, int scancode, int action, int mods)
 		RAM[KEY_ARRAY+RAM[KEY_POS_WRITE]] = (uint8_t)PS2KeyCode(key); 
 
 		RAM[KEY_POS_WRITE]++;
+	
+		if (RAM[KEY_POS_WRITE] >= 0x80) RAM[KEY_POS_WRITE] = 0x00;
 
 		if (PS2KeyCode(key) == 0xE0) // extended
 		{
 			RAM[KEY_ARRAY+RAM[KEY_POS_WRITE]] = (uint8_t)PS2ExtendedKeyCode(key);
 		
 			RAM[KEY_POS_WRITE]++;
+	
+			if (RAM[KEY_POS_WRITE] >= 0x80) RAM[KEY_POS_WRITE] = 0x00;
 		}	
 
 		if (key == GLFW_KEY_PAUSE)
@@ -910,11 +914,15 @@ void handleKeys(GLFWwindow *window, int key, int scancode, int action, int mods)
 			RAM[KEY_ARRAY+RAM[KEY_POS_WRITE]] = (uint8_t)0xE0;
 		
 			RAM[KEY_POS_WRITE]++;
+
+			if (RAM[KEY_POS_WRITE] >= 0x80) RAM[KEY_POS_WRITE] = 0x00;
 		}	
 
 		RAM[KEY_ARRAY+RAM[KEY_POS_WRITE]] = (uint8_t)0xF0;
 
 		RAM[KEY_POS_WRITE]++;
+
+		if (RAM[KEY_POS_WRITE] >= 0x80) RAM[KEY_POS_WRITE] = 0x00;
 
 		if (PS2KeyCode(key) == 0xE0) // extended
 		{
@@ -926,6 +934,8 @@ void handleKeys(GLFWwindow *window, int key, int scancode, int action, int mods)
 		}
 
 		RAM[KEY_POS_WRITE]++;
+
+		if (RAM[KEY_POS_WRITE] >= 0x80) RAM[KEY_POS_WRITE] = 0x00;
 	}
 
 	return;
