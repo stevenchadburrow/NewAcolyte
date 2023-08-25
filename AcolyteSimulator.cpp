@@ -98,6 +98,7 @@ void WriteFunction(uint16_t address, uint8_t value)
 	else
 	{
 		// write to ROM
+		//printf("Write to ROM\nA=%02x X=%02x Y=%02x S=%02x P=%04x R=%02x\n", CPU->A, CPU->X, CPU->Y, CPU->sp, CPU->pc, CPU->status);
 
 		if (value != 0x00)
 		{
