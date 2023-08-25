@@ -365,6 +365,8 @@ defense_reset
 	CLC
 	ROR A
 	CLC
+	ROR A
+	CLC
 	ADC defense_score_value
 	STA defense_score_value
 	LDA defense_ammo_constant
@@ -1160,7 +1162,7 @@ defense_draw_explosion_color
 	DEC defense_pop_value
 	JMP defense_draw_zero_stats
 defense_draw_zero_score
-	INC defense_score_value
+	;INC defense_score_value
 defense_draw_zero_stats
 	STZ defense_missile_x,X
 	STZ defense_missile_y,X
