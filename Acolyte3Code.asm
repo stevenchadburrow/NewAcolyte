@@ -1209,34 +1209,64 @@ defense_draw_prev_line
 	BNE defense_draw_prev_start
 	JMP defense_draw_prev_end
 defense_draw_prev_start
-	LDA defense_prev7_x,Y
-	STA defense_prev8_x,Y
-	LDA defense_prev7_y,Y
-	STA defense_prev8_y,Y
-	LDA defense_prev6_x,Y
-	STA defense_prev7_x,Y
-	LDA defense_prev6_y,Y
-	STA defense_prev7_y,Y
-	LDA defense_prev5_x,Y
-	STA defense_prev6_x,Y
-	LDA defense_prev5_y,Y
-	STA defense_prev6_y,Y
-	LDA defense_prev4_x,Y
-	STA defense_prev5_x,Y
-	LDA defense_prev4_y,Y
-	STA defense_prev5_y,Y
-	LDA defense_prev3_x,Y
-	STA defense_prev4_x,Y
-	LDA defense_prev3_y,Y
-	STA defense_prev4_y,Y
-	LDA defense_prev2_x,Y
-	STA defense_prev3_x,Y
-	LDA defense_prev2_y,Y
-	STA defense_prev3_y,Y
-	LDA defense_prev1_x,Y
-	STA defense_prev2_x,Y
-	LDA defense_prev1_y,Y
-	STA defense_prev2_y,Y
+;	LDA defense_prev7_x,Y
+;	STA defense_prev8_x,Y
+;	LDA defense_prev7_y,Y
+;	STA defense_prev8_y,Y
+;	LDA defense_prev6_x,Y
+;	STA defense_prev7_x,Y
+;	LDA defense_prev6_y,Y
+;	STA defense_prev7_y,Y
+;	LDA defense_prev5_x,Y
+;	STA defense_prev6_x,Y
+;	LDA defense_prev5_y,Y
+;	STA defense_prev6_y,Y
+;	LDA defense_prev4_x,Y
+;	STA defense_prev5_x,Y
+;	LDA defense_prev4_y,Y
+;	STA defense_prev5_y,Y
+;	LDA defense_prev3_x,Y
+;	STA defense_prev4_x,Y
+;	LDA defense_prev3_y,Y
+;	STA defense_prev4_y,Y
+;	LDA defense_prev2_x,Y
+;	STA defense_prev3_x,Y
+;	LDA defense_prev2_y,Y
+;	STA defense_prev3_y,Y
+;	LDA defense_prev1_x,Y
+;	STA defense_prev2_x,Y
+;	LDA defense_prev1_y,Y
+;	STA defense_prev2_y,Y
+
+	PHX
+	TYA
+	CLC
+	ADC #<defense_prev7_y
+	STA sub_read+1
+	LDA #>defense_prev7_y
+	STA sub_read+2
+	TYA
+	CLC
+	ADC #<defense_prev8_y
+	STA sub_write+1
+	LDA #>defense_prev8_y
+	STA sub_write+2
+	LDX #$0E
+defense_draw_prev_loop
+	JSR sub_read
+	JSR sub_write
+	LDA sub_read+1
+	SEC
+	SBC #$08
+	STA sub_read+1
+	LDA sub_write+1
+	SEC
+	SBC #$08
+	STA sub_write+1
+	DEX
+	BNE defense_draw_prev_loop
+	PLX
+
 	LDA defense_missile_x,X
 	CLC
 	ROR A
@@ -4410,12 +4440,14 @@ basic_line
 	STZ basic_value1_high	
 basic_line_value_start
 	LDA command_string,Y
+	CMP #" "
+	BEQ basic_line_value_exit
 	CLC
 	CMP #$30 ; 0
-	BCC basic_line_value_exit
+	BCC basic_line_value_wrong
 	CLC
 	CMP #$3A ; 9 + 1
-	BCS basic_line_value_exit
+	BCS basic_line_value_wrong
 	STA basic_character
 	LDA #$0A
 	STA basic_value2_low
@@ -4444,6 +4476,10 @@ basic_line_value_exit
 basic_line_value_error
 	LDA #$FF
 	RTS
+basic_line_value_wrong
+	LDA basic_wait_delete
+	BEQ basic_line_value_error
+	JMP basic_line_value_exit
 basic_line_value_ready
 	LDA #<basic_memory
 	STA sub_read+1
@@ -7217,6 +7253,9 @@ inputchar_success
 	BEQ inputchar_release
 	CMP #$E0 ; extended
 	BEQ inputchar_extended
+	CLC
+	CMP #$80
+	BCS inputchar_error
 	CMP #ps2_shift_left
 	BEQ inputchar_shift
 	CMP #ps2_shift_right
@@ -7247,6 +7286,8 @@ inputchar_skip
 	TAX
 	LDA key_conversion,X
 	JMP inputchar_exit
+inputchar_error
+	LDA #$00
 inputchar_exit
 	PLX
 	PLY
