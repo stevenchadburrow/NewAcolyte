@@ -4,13 +4,25 @@
 ; ~/dev65/bin/as65 Acolyte3Code.asm
 
 ; Second, run
-; ./Parser.o Acolyte3Code.lst Acolyte3Code.bin 49152 0 16384 114688
+; ./Parser.o Acolyte3Code.lst Acolyte3Code.bin 49152 0 16384 0
+
+; Third, run
+; ~/dev65/bin/as65 Acolyte3Code-Bank2.asm
+
+; Fourth, run
+; ./Parser.o Acolyte3Code-Bank2.lst Acolyte3Code-Bank2.bin 49152 0 16384 0
+
+; Fifth, run
+; ./Combiner.o Acolyte3Code.bin Acolyte3Code-Bank2.bin Acolyte3Code-Combined.bin
 
 ; Third, run
 ; minipro -p "SST39SF010" -w Acolyte3Code.bin
 
 ; OR
 ; ./AcolyteSimulator.o Acolyte3Code.bin
+
+; Altogether
+; ~/dev65/bin/as65 Acolyte3Code.asm ; ./Parser.o Acolyte3Code.lst Acolyte3Code.bin 49152 0 16384 0 ; ~/dev65/bin/as65 Acolyte3Code-Bank2.asm ; ./Parser.o Acolyte3Code-Bank2.lst Acolyte3Code-Bank2.bin 49152 0 16384 0 ; ./Combiner.o Acolyte3Code.bin Acolyte3Code-Bank2.bin Acolyte3Code-Combined.bin
 
 
 
@@ -5759,430 +5771,6 @@ basic_mod_store
 
 
 
-sdcard_enable
-	PHA
-	LDA via_pb
-	AND #spi_cs_inv
-	STA via_pb
-	PLA
-	RTS
-
-sdcard_disable
-	PHA
-	LDA via_pb
-	ORA #spi_cs
-	STA via_pb
-	PLA
-	RTS
-
-sdcard_output_low
-	PHA
-	LDA via_pb
-	AND #spi_mosi_inv
-	STA via_pb
-	PLA
-	RTS
-
-sdcard_output_high
-	PHA
-	LDA via_pb
-	ORA #spi_mosi
-	STA via_pb
-	PLA
-	RTS
-
-sdcard_input ; results in $00 or $80
-	LDA via_pb
-	AND #spi_miso
-	CLC
-	ROL A
-	RTS
-
-sdcard_toggle
-	PHA
-	LDA via_pb
-	ORA #spi_clk
-	STA via_pb
-	; delay here?
-	AND #spi_clk_inv
-	STA via_pb
-	PLA
-	RTS
-
-sdcard_sendbyte ; already in A
-	PHA
-	PHX
-	LDX #$08
-sdcard_sendbyte_loop
-	ROL A
-	BCC sdcard_sendbyte_zero
-	JSR sdcard_output_high
-	JMP sdcard_sendbyte_toggle
-sdcard_sendbyte_zero
-	JSR sdcard_output_low
-sdcard_sendbyte_toggle
-	JSR sdcard_toggle
-	DEX
-	BNE sdcard_sendbyte_loop
-	PLX
-	PLA
-	RTS
-
-sdcard_receivebyte ; into A
-	PHX
-	LDA #$00
-	LDX #$08
-sdcard_receivebyte_loop
-	PHA
-	JSR sdcard_input
-	BEQ sdcard_receivebyte_zero
-	PLA
-	SEC
-	ROL A
-	JMP sdcard_receivebyte_toggle
-sdcard_receivebyte_zero
-	PLA
-	CLC
-	ROL A
-sdcard_receivebyte_toggle
-	JSR sdcard_toggle
-	DEX
-	BNE sdcard_receivebyte_loop
-	PLX
-	RTS
-
-sdcard_waitresult
-	PHX
-	PHY
-	LDX #$FF
-	LDY #$08 ; arbitrary values
-sdcard_waitresult_loop
-	JSR sdcard_receivebyte
-	CMP #$FF
-	BNE sdcard_waitresult_exit
-	DEX
-	BNE sdcard_waitresult_loop
-	DEY
-	BNE sdcard_waitresult_loop
-	LDA #$FF
-sdcard_waitresult_exit
-	PLY
-	PLX
-	RTS
-	
-sdcard_pump
-	PHA
-	PHX
-	JSR sdcard_disable
-	JSR sdcard_output_high
-	JSR longdelay
-	LDX #$50
-sdcard_pump_loop
-	JSR sdcard_toggle
-	DEX
-	BNE sdcard_pump_loop
-	PLX
-	PLA
-	RTS
-
-; sets A to $00 for error, $01 for success
-sdcard_initialize
-	JSR sdcard_disable
-	JSR sdcard_pump
-	JSR longdelay
-	JSR sdcard_enable
-	LDA #$40 ; CMD0 = 0x40 + 0x00 (0 in hex)
-	JSR sdcard_sendbyte
-	LDA #$00
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	LDA #$95 ; CRC for CMD0
-	JSR sdcard_sendbyte
-	JSR sdcard_waitresult
-	;CMP #$FF
-	;BEQ sdcard_initialize_error
-	JSR sdcard_disable
-	CMP #$01
-	BNE sdcard_initialize_error ; expecting 0x01
-	JSR longdelay
-	JSR sdcard_pump
-	JSR sdcard_enable
-	LDA #$48 ; CMD8 = 0x40 + 0x08 (8 in hex)
-	JSR sdcard_sendbyte 
-	LDA #$00 ; CMD8 needs 0x000001AA argument
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	LDA #$01
-	JSR sdcard_sendbyte
-	LDA #$AA
-	JSR sdcard_sendbyte
-	LDA #$87 ; CRC for CMD8
-	JSR sdcard_sendbyte
-	JSR sdcard_waitresult
-	;CMP #$FF
-	;BEQ sdcard_initialize_error
-	JSR sdcard_disable
-	CMP #$01
-	BNE sdcard_initialize_error ; expecting 0x01
-	JSR sdcard_enable
-	JSR sdcard_receivebyte ; 32-bit return value, ignore
-	JSR sdcard_receivebyte
-	JSR sdcard_receivebyte
-	JSR sdcard_receivebyte
-	JSR sdcard_disable
-	JMP sdcard_initialize_loop
-sdcard_initialize_error
-	LDA #$00 ; return $00 for error
-	RTS
-sdcard_initialize_loop
-	JSR sdcard_pump
-	JSR longdelay
-	JSR sdcard_enable
-	LDA #$77 ; CMD55 = 0x40 + 0x37 (55 in hex)
-	JSR sdcard_sendbyte
-	LDA #$00
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	LDA #$01 ; CRC (general)
-	JSR sdcard_sendbyte
-	JSR sdcard_waitresult
-	;CMP #$FF
-	;BEQ sdcard_initialize_error
-	JSR sdcard_disable
-	CMP #$01
-	BNE sdcard_initialize_error ; expecting 0x01
-	JSR sdcard_pump
-	JSR longdelay
-	JSR sdcard_enable
-	LDA #$69 ; CMD41 = 0x40 + 0x29 (41 in hex)
-	JSR sdcard_sendbyte
-	LDA #$40 ; needed for CMD41?
-	JSR sdcard_sendbyte
-	LDA #$00
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	JSR sdcard_sendbyte
-	LDA #$01 ; CRC (general)
-	JSR sdcard_sendbyte
-	JSR sdcard_waitresult
-	;CMP #$FF
-	;BEQ sdcard_initialize_error
-	JSR sdcard_disable
-	CMP #$00
-	BEQ sdcard_initialize_exit ; expecting 0x00
-	CMP #$01
-	BNE sdcard_initialize_error ; if 0x01, try again
-	JMP sdcard_initialize_loop
-sdcard_initialize_exit
-	LDA #$01 ; return $01 for success
-	RTS
-	
-; X = low block addr, Y = high block addr, sets A to $00 for error, $01 for success
-; always stores 512 bytes wherever 'sdcard_block' says
-sdcard_readblock
-	PHY
-	PHX
-	JSR sdcard_disable
-	JSR sdcard_pump
-	JSR longdelay
-	JSR sdcard_enable
-	LDA #$51 ; CMD17 = 0x40 + 0x11 (17 in hex)
-	JSR sdcard_sendbyte
-	LDA #$00
-	JSR sdcard_sendbyte
-	TYA
-	JSR sdcard_sendbyte
-	TXA
-	AND #$FE ; only blocks of 512 bytes
-	JSR sdcard_sendbyte
-	LDA #$00
-	JSR sdcard_sendbyte
-	LDA #$01 ; CRC (general)
-	JSR sdcard_sendbyte
-	JSR sdcard_waitresult
-	;CMP #$FF
-	;BEQ sdcard_readblock_error
-	CMP #$00
-	BNE sdcard_readblock_error ; expecting 0x00
-	JSR sdcard_waitresult
-	CMP #$FF
-	BEQ sdcard_readblock_error
-	CMP #$FE
-	BNE sdcard_readblock_error ; data packet starts with 0xFE
-	LDY #$02
-	LDX #$00
-	LDA sdcard_block+0
-	STA sub_write+1
-	LDA sdcard_block+1
-	STA sub_write+2
-	JMP sdcard_readblock_loop
-sdcard_readblock_error
-	PLX
-	PLY
-	LDA #$00 ; return $00 for error
-	RTS
-sdcard_readblock_loop
-	JSR sdcard_receivebyte
-	JSR sub_write
-	INC sub_write+1
-	BNE sdcard_readblock_increment
-	INC sub_write+2
-sdcard_readblock_increment
-	INX
-	BNE sdcard_readblock_loop
-	DEY
-	BNE sdcard_readblock_loop
-	JSR sdcard_receivebyte ; data packet ends with 0x55
-	JSR sdcard_receivebyte ; and then 0xAA, ignore here
-	JSR sdcard_disable
-	PLX
-	PLY
-	LDA #$01 ; return $01 for success
-	RTS
-
-; X = low block addr, Y = high block addr, sets A to $00 for error, $01 for success
-; always takes 512 bytes wherever 'sdcard_block' says
-sdcard_writeblock
-	PHY
-	PHX
-	JSR sdcard_disable
-	JSR sdcard_pump
-	JSR longdelay
-	JSR sdcard_enable
-	LDA #$58 ; CMD24 = 0x40 + 0x18 (24 in hex)
-	JSR sdcard_sendbyte
-	LDA #$00
-	JSR sdcard_sendbyte
-	TYA
-	JSR sdcard_sendbyte
-	TXA
-	AND #$FE ; only blocks of 512 bytes
-	JSR sdcard_sendbyte
-	LDA #$00
-	JSR sdcard_sendbyte
-	LDA #$01 ; CRC (general)
-	JSR sdcard_sendbyte
-	JSR sdcard_waitresult
-	;CMP #$FF
-	;BEQ sdcard_writeblock_error
-	CMP #$00
-	BNE sdcard_writeblock_error ; expecting 0x00
-	LDA #$FE ; data packet starts with 0xFE
-	JSR sdcard_sendbyte
-	LDY #$02
-	LDX #$00
-	LDA sdcard_block+0
-	STA sub_read+1
-	LDA sdcard_block+1
-	STA sub_read+2
-	JMP sdcard_writeblock_loop
-sdcard_writeblock_error
-	PLX
-	PLY
-	LDA #$00 ; return $00 for error
-	RTS
-sdcard_writeblock_loop
-	JSR sub_read
-	JSR sdcard_sendbyte
-	INC sub_read+1
-	BNE sdcard_writeblock_increment
-	INC sub_read+2
-sdcard_writeblock_increment
-	INX
-	BNE sdcard_writeblock_loop
-	DEY
-	BNE sdcard_writeblock_loop
-	LDA #$55 ; data packet ends with 0x55
-	JSR sdcard_sendbyte
-	LDA #$AA ; and then 0xAA
-	JSR sdcard_sendbyte
-	JSR sdcard_receivebyte ; toggles clock 8 times, ignore
-	JSR sdcard_disable
-	PLY
-	PLX
-	LDA #$01 ; return $01 for success
-	RTS
-	
-; loads first 512 bytes on SDcard into $0500-$06FF and then executes starting at $0500
-sdcard_bootloader
-	LDA #$00 ; low addr
-	STA sdcard_block+0
-	LDA #$05 ; high addr
-	STA sdcard_block+1
-	PHX
-	PHY
-	JSR sdcard_initialize
-	CMP #$00
-	BEQ sdcard_bootloader_error
-	LDY #$00 ; high addr
-	LDX #$40 ; low addr
-	JSR sdcard_readblock
-	CMP #$00
-	BEQ sdcard_bootloader_error
-	LDA sdcard_block+0
-	STA sub_jump+1
-	LDA sdcard_block+1
-	STA sub_jump+2
-	JSR sub_jump ; start executing at top of sdcard memory, using JSR in hopes of coming back here
-	PLY
-	PLX
-	LDA #$01 ; returns $01 for success
-	RTS
-sdcard_bootloader_error
-	PLY
-	PLX
-	LDA #$00 ; returns $00 for error
-	RTS
-
-
-; A = $00 to write, A = $01 to read, returns $FF on success
-sdcard_saveload
-	PHX
-	PHA
-	LDA #$00
-	STA sdcard_block+0
-	LDA #$80
-	STA sdcard_block+1
-	LDX #$00
-	LDY #$00
-	JSR sdcard_initialize
-	CMP #00
-	BEQ sdcard_saveload_exit
-sdcard_saveload_loop
-	JSR inputchar
-	CMP #$1B
-	BEQ sdcard_saveload_exit
-	PLA
-	BEQ sdcard_saveload_write
-	PHA
-	JSR sdcard_readblock
-	JMP sdcard_saveload_done
-sdcard_saveload_write
-	PHA
-	JSR sdcard_writeblock
-sdcard_saveload_done
-	CMP #$00
-	BEQ sdcard_saveload_exit
-	INC sdcard_block+1
-	INC sdcard_block+1
-	INX
-	INX
-	CPX #$40
-	BNE sdcard_saveload_loop
-	PLA
-	LDA #$FF ; success
-	PHA
-sdcard_saveload_exit
-	PLA
-	PLX
-	RTS
-
-
-
 
 scratchpad
 	LDA #$E1 ; produces greyscale
@@ -6830,208 +6418,6 @@ monitor_single ; subroutine
 
 
 
-setup
-	STZ printchar_inverse ; turn off inverse
-	LDA #$FF ; white 
-	STA printchar_foreground
-	LDA #$00 ; black
-	STA printchar_background
-
-	LDA #$AD ; LDAa
-	STA sub_read+0
-	STA printchar_read+0
-	LDA #$60 ; RTS
-	STA sub_read+3
-	STA printchar_read+3
-
-	LDA #$BD ; LDAax
-	STA sub_index+0
-	LDA #$60 ; RTS
-	STA sub_index+3
-
-	LDA #$8D ; STAa
-	STA sub_write+0
-	STA printchar_write+0
-	LDA #$60 ; RTS
-	STA sub_write+3
-	STA printchar_write+3
-
-	LDA #$4C ; JMPa
-	STA sub_jump+0
-
-	LDA #$4C ; JMPa
-	STA sub_inputchar+0
-	LDA #<inputchar
-	STA sub_inputchar+1
-	LDA #>inputchar
-	STA sub_inputchar+2
-
-	LDA #$4C ; JMPa
-	STA sub_printchar+0
-	LDA #<printchar
-	STA sub_printchar+1
-	LDA #>printchar
-	STA sub_printchar+2
-
-	LDA #$4C ; JMPa
-	STA sub_sdcard_initialize+0
-	LDA #<sdcard_initialize
-	STA sub_sdcard_initialize+1
-	LDA #>sdcard_initialize
-	STA sub_sdcard_initialize+2
-
-	LDA #$4C ; JMPa
-	STA sub_sdcard_readblock+0
-	LDA #<sdcard_readblock
-	STA sub_sdcard_readblock+1
-	LDA #>sdcard_readblock
-	STA sub_sdcard_readblock+2
-
-	LDA #$4C ; JMPa
-	STA sub_sdcard_writeblock+0
-	LDA #<sdcard_writeblock
-	STA sub_sdcard_writeblock+1
-	LDA #>sdcard_writeblock
-	STA sub_sdcard_writeblock+2
-
-	STZ sub_random_var
-
-	LDX #$10
-setup_random_loop
-	LDA setup_random_code,X
-	STA sub_random,X
-	DEX
-	CPX #$FF
-	BNE setup_random_loop
-
-	JSR basic_clear
-
-	RTS
-
-setup_random_code
-	.BYTE $AD
-	.WORD sub_random_var
-	.BYTE $2A,$18,$2A,$18,$6D
-	.WORD sub_random_var
-	.BYTE $18,$69,$11,$8D
-	.WORD sub_random_var
-	.BYTE $60
-
-
-function_keys
-	CMP #$1C ; F1, scratchpad
-	BNE function_keys_next1
-function_keys_scratchpad
-	LDA #$0C ; form feed
-	JSR printchar
-	JSR intro
-	LDA #$FF
-	STA function_mode
-	PLA
-	PLA
-	JMP scratchpad
-function_keys_next1
-	CMP #$1D ; F2, monitor
-	BNE function_keys_next2
-	LDA #$0C ; form feed
-	JSR printchar
-	JSR menu
-	LDA #$00
-	STA function_mode
-	PLA
-	PLA
-	JMP monitor
-function_keys_next2
-	CMP #$1E ; F3, basic
-	BNE function_keys_next3
-	LDA #$0C ; form feed
-	JSR printchar
-	JSR menu
-	LDA #$01
-	STA function_mode
-	PLA
-	PLA
-	JMP basic
-function_keys_next3
-	CMP #$1F ; F4, tetra
-	BNE function_keys_next4
-	LDA #$02
-	STA function_mode
-	PLA
-	PLA
-	JMP tetra
-function_keys_next4
-	CMP #$16 ; F9, sdcard_bootloader
-	BNE function_keys_next5
-	LDA function_mode
-	CMP #$FF
-	BNE function_keys_exit
-	JSR sdcard_bootloader
-	CMP #$00
-	BNE function_keys_exit ; successful exit
-	BEQ function_keys_exit ; error	
-	;JMP vector_reset ; error exit
-function_keys_next5
-	CMP #$0E ; F5, intruder
-	BNE function_keys_next6
-	LDA #$03
-	STA function_mode
-	PLA
-	PLA
-	JMP intruder
-function_keys_next6
-	CMP #$0F ; F6, defense
-	BNE function_keys_next7
-	LDA #$04
-	STA function_mode
-	PLA
-	PLA
-	JMP defense
-function_keys_next7
-	CMP #$07 ; F8, save/load (or bell)
-	BNE function_keys_next8
-	
-	LDA function_mode
-	CLC
-	CMP #$02
-	BCS function_keys_exit	
-
-	LDA #"?"
-	JSR printchar
-	LDA #$08
-	JSR printchar
-function_keys_wait
-	JSR inputchar
-	CMP #$00
-	BEQ function_keys_wait
-	CMP #"<"
-	BEQ function_keys_saveload_save
-	CMP #">"
-	BEQ function_keys_saveload_load
-function_keys_next8
-	RTS
-function_keys_exit
-	LDA #$00
-	RTS
-
-function_keys_saveload_load
-	LDA #$01
-	BNE function_keys_saveload_continue
-function_keys_saveload_save
-	LDA #$00
-function_keys_saveload_continue
-	JSR sdcard_saveload
-	CMP #$FF
-	BEQ function_keys_exit ; successful exit
-function_keys_saveload_error
-	LDA #"!"
-	JSR printchar
-	LDA #$08
-	JSR printchar
-	BNE function_keys_exit ; error	
-
-
-
 intro
 	LDX #$00
 intro_loop
@@ -7230,6 +6616,617 @@ help_print_hex_number
 	CLC
 	ADC #$30
 	JSR printchar
+	RTS
+
+
+
+setup
+	STZ printchar_inverse ; turn off inverse
+	LDA #$FF ; white 
+	STA printchar_foreground
+	LDA #$00 ; black
+	STA printchar_background
+
+	LDA #$AD ; LDAa
+	STA sub_read+0
+	STA printchar_read+0
+	LDA #$60 ; RTS
+	STA sub_read+3
+	STA printchar_read+3
+
+	LDA #$BD ; LDAax
+	STA sub_index+0
+	LDA #$60 ; RTS
+	STA sub_index+3
+
+	LDA #$8D ; STAa
+	STA sub_write+0
+	STA printchar_write+0
+	LDA #$60 ; RTS
+	STA sub_write+3
+	STA printchar_write+3
+
+	LDA #$4C ; JMPa
+	STA sub_jump+0
+
+	LDA #$4C ; JMPa
+	STA sub_inputchar+0
+	LDA #<inputchar
+	STA sub_inputchar+1
+	LDA #>inputchar
+	STA sub_inputchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_printchar+0
+	LDA #<printchar
+	STA sub_printchar+1
+	LDA #>printchar
+	STA sub_printchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_initialize+0
+	LDA #<sdcard_initialize
+	STA sub_sdcard_initialize+1
+	LDA #>sdcard_initialize
+	STA sub_sdcard_initialize+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_readblock+0
+	LDA #<sdcard_readblock
+	STA sub_sdcard_readblock+1
+	LDA #>sdcard_readblock
+	STA sub_sdcard_readblock+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_writeblock+0
+	LDA #<sdcard_writeblock
+	STA sub_sdcard_writeblock+1
+	LDA #>sdcard_writeblock
+	STA sub_sdcard_writeblock+2
+
+	STZ sub_random_var
+
+	LDX #$10
+setup_random_loop
+	LDA setup_random_code,X
+	STA sub_random,X
+	DEX
+	CPX #$FF
+	BNE setup_random_loop
+
+	JSR basic_clear
+
+	RTS
+
+setup_random_code
+	.BYTE $AD
+	.WORD sub_random_var
+	.BYTE $2A,$18,$2A,$18,$6D
+	.WORD sub_random_var
+	.BYTE $18,$69,$11,$8D
+	.WORD sub_random_var
+	.BYTE $60
+
+
+
+function_keys
+	CMP #$1C ; F1, scratchpad
+	BNE function_keys_next1
+function_keys_scratchpad
+	LDA #$0C ; form feed
+	JSR printchar
+	JSR intro
+	LDA #$FF
+	STA function_mode
+	PLA
+	PLA
+	JMP scratchpad
+function_keys_next1
+	CMP #$1D ; F2, monitor
+	BNE function_keys_next2
+	LDA #$0C ; form feed
+	JSR printchar
+	JSR menu
+	LDA #$00
+	STA function_mode
+	PLA
+	PLA
+	JMP monitor
+function_keys_next2
+	CMP #$1E ; F3, basic
+	BNE function_keys_next3
+	LDA #$0C ; form feed
+	JSR printchar
+	JSR menu
+	LDA #$01
+	STA function_mode
+	PLA
+	PLA
+	JMP basic
+function_keys_next3
+	CMP #$1F ; F4, tetra
+	BNE function_keys_next4
+	LDA #$02
+	STA function_mode
+	PLA
+	PLA
+	JMP tetra
+function_keys_next4
+	CMP #$16 ; F9, sdcard_bootloader
+	BNE function_keys_next5
+	LDA function_mode
+	CMP #$FF
+	BNE function_keys_exit
+	JSR sdcard_bootloader
+	CMP #$00
+	BNE function_keys_exit ; successful exit
+	BEQ function_keys_exit ; error	
+	;JMP vector_reset ; error exit
+function_keys_next5
+	CMP #$0E ; F5, intruder
+	BNE function_keys_next6
+	LDA #$03
+	STA function_mode
+	PLA
+	PLA
+	JMP intruder
+function_keys_next6
+	CMP #$0F ; F6, defense
+	BNE function_keys_next7
+	LDA #$04
+	STA function_mode
+	PLA
+	PLA
+	JMP defense
+function_keys_next7
+	CMP #$07 ; F8, save/load (or bell)
+	BNE function_keys_next8
+	LDA function_mode
+	CLC
+	CMP #$02
+	BCS function_keys_exit	
+	LDA #"?"
+	JSR printchar
+	LDA #$08
+	JSR printchar
+function_keys_wait
+	JSR inputchar
+	CMP #$00
+	BEQ function_keys_wait
+	CMP #"<"
+	BEQ function_keys_saveload_save
+	CMP #">"
+	BEQ function_keys_saveload_load
+	BNE function_keys_exit
+function_keys_next8
+	CMP #$18 ; F10, bank switch
+	BNE function_keys_next9
+	PLA
+	PLA
+	JMP bank_switch
+function_keys_next9
+	RTS
+function_keys_exit
+	LDA #$00
+	RTS
+
+function_keys_saveload_load
+	LDA #$01
+	BNE function_keys_saveload_continue
+function_keys_saveload_save
+	LDA #$00
+function_keys_saveload_continue
+	JSR sdcard_saveload
+	CMP #$FF
+	BEQ function_keys_exit ; successful exit
+function_keys_saveload_error
+	LDA #"!"
+	JSR printchar
+	LDA #$08
+	JSR printchar
+	BNE function_keys_exit ; error	
+
+
+
+; loads first 512 bytes on SDcard into $0500-$06FF and then executes starting at $0500
+sdcard_bootloader
+	LDA #$00 ; low addr
+	STA sdcard_block+0
+	LDA #$05 ; high addr
+	STA sdcard_block+1
+	PHX
+	PHY
+	JSR sdcard_initialize
+	CMP #$00
+	BEQ sdcard_bootloader_error
+	LDY #$00 ; high addr
+	LDX #$40 ; low addr
+	JSR sdcard_readblock
+	CMP #$00
+	BEQ sdcard_bootloader_error
+	LDA sdcard_block+0
+	STA sub_jump+1
+	LDA sdcard_block+1
+	STA sub_jump+2
+	JSR sub_jump ; start executing at top of sdcard memory, using JSR in hopes of coming back here
+	PLY
+	PLX
+	LDA #$01 ; returns $01 for success
+	RTS
+sdcard_bootloader_error
+	PLY
+	PLX
+	LDA #$00 ; returns $00 for error
+	RTS
+
+
+; A = $00 to write, A = $01 to read, returns $FF on success
+sdcard_saveload
+	PHX
+	PHA
+	LDA #$00
+	STA sdcard_block+0
+	LDA #$80
+	STA sdcard_block+1
+	LDX #$00
+	LDY #$00
+	JSR sdcard_initialize
+	CMP #00
+	BEQ sdcard_saveload_exit
+sdcard_saveload_loop
+	JSR inputchar
+	CMP #$1B
+	BEQ sdcard_saveload_exit
+	PLA
+	BEQ sdcard_saveload_write
+	PHA
+	JSR sdcard_readblock
+	JMP sdcard_saveload_done
+sdcard_saveload_write
+	PHA
+	JSR sdcard_writeblock
+sdcard_saveload_done
+	CMP #$00
+	BEQ sdcard_saveload_exit
+	INC sdcard_block+1
+	INC sdcard_block+1
+	INX
+	INX
+	CPX #$40
+	BNE sdcard_saveload_loop
+	PLA
+	LDA #$FF ; success
+	PHA
+sdcard_saveload_exit
+	PLA
+	PLX
+	RTS
+
+
+
+; unused space here
+
+
+
+	.ORG $F200 ; most important things below including sdcard, inputchar, printchar, and interrupts
+
+
+sdcard_sendbyte ; already in A
+	PHA
+	PHX
+	LDX #$08
+sdcard_sendbyte_loop
+	ROL A
+	BCC sdcard_sendbyte_zero
+	JSR spi_output_high
+	JMP sdcard_sendbyte_toggle
+sdcard_sendbyte_zero
+	JSR spi_output_low
+sdcard_sendbyte_toggle
+	JSR spi_toggle
+	DEX
+	BNE sdcard_sendbyte_loop
+	PLX
+	PLA
+	RTS
+
+sdcard_receivebyte ; into A
+	PHX
+	LDA #$00
+	LDX #$08
+sdcard_receivebyte_loop
+	PHA
+	JSR spi_input
+	BEQ sdcard_receivebyte_zero
+	PLA
+	SEC
+	ROL A
+	JMP sdcard_receivebyte_toggle
+sdcard_receivebyte_zero
+	PLA
+	CLC
+	ROL A
+sdcard_receivebyte_toggle
+	JSR spi_toggle
+	DEX
+	BNE sdcard_receivebyte_loop
+	PLX
+	RTS
+
+sdcard_waitresult
+	PHX
+	PHY
+	LDX #$FF
+	LDY #$08 ; arbitrary values
+sdcard_waitresult_loop
+	JSR sdcard_receivebyte
+	CMP #$FF
+	BNE sdcard_waitresult_exit
+	DEX
+	BNE sdcard_waitresult_loop
+	DEY
+	BNE sdcard_waitresult_loop
+	LDA #$FF
+sdcard_waitresult_exit
+	PLY
+	PLX
+	RTS
+	
+sdcard_pump
+	PHA
+	PHX
+	JSR spi_disable
+	JSR spi_output_high
+	JSR longdelay
+	LDX #$50
+sdcard_pump_loop
+	JSR spi_toggle
+	DEX
+	BNE sdcard_pump_loop
+	PLX
+	PLA
+	RTS
+
+; sets A to $00 for error, $01 for success
+sdcard_initialize
+	JSR spi_disable
+	JSR sdcard_pump
+	JSR longdelay
+	JSR spi_enable
+	LDA #$40 ; CMD0 = 0x40 + 0x00 (0 in hex)
+	JSR sdcard_sendbyte
+	LDA #$00
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	LDA #$95 ; CRC for CMD0
+	JSR sdcard_sendbyte
+	JSR sdcard_waitresult
+	;CMP #$FF
+	;BEQ sdcard_initialize_error
+	JSR spi_disable
+	CMP #$01
+	BNE sdcard_initialize_error ; expecting 0x01
+	JSR longdelay
+	JSR sdcard_pump
+	JSR spi_enable
+	LDA #$48 ; CMD8 = 0x40 + 0x08 (8 in hex)
+	JSR sdcard_sendbyte 
+	LDA #$00 ; CMD8 needs 0x000001AA argument
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	LDA #$01
+	JSR sdcard_sendbyte
+	LDA #$AA
+	JSR sdcard_sendbyte
+	LDA #$87 ; CRC for CMD8
+	JSR sdcard_sendbyte
+	JSR sdcard_waitresult
+	;CMP #$FF
+	;BEQ sdcard_initialize_error
+	JSR spi_disable
+	CMP #$01
+	BNE sdcard_initialize_error ; expecting 0x01
+	JSR spi_enable
+	JSR sdcard_receivebyte ; 32-bit return value, ignore
+	JSR sdcard_receivebyte
+	JSR sdcard_receivebyte
+	JSR sdcard_receivebyte
+	JSR spi_disable
+	JMP sdcard_initialize_loop
+sdcard_initialize_error
+	LDA #$00 ; return $00 for error
+	RTS
+sdcard_initialize_loop
+	JSR sdcard_pump
+	JSR longdelay
+	JSR spi_enable
+	LDA #$77 ; CMD55 = 0x40 + 0x37 (55 in hex)
+	JSR sdcard_sendbyte
+	LDA #$00
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	LDA #$01 ; CRC (general)
+	JSR sdcard_sendbyte
+	JSR sdcard_waitresult
+	;CMP #$FF
+	;BEQ sdcard_initialize_error
+	JSR spi_disable
+	CMP #$01
+	BNE sdcard_initialize_error ; expecting 0x01
+	JSR sdcard_pump
+	JSR longdelay
+	JSR spi_enable
+	LDA #$69 ; CMD41 = 0x40 + 0x29 (41 in hex)
+	JSR sdcard_sendbyte
+	LDA #$40 ; needed for CMD41?
+	JSR sdcard_sendbyte
+	LDA #$00
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	JSR sdcard_sendbyte
+	LDA #$01 ; CRC (general)
+	JSR sdcard_sendbyte
+	JSR sdcard_waitresult
+	;CMP #$FF
+	;BEQ sdcard_initialize_error
+	JSR spi_disable
+	CMP #$00
+	BEQ sdcard_initialize_exit ; expecting 0x00
+	CMP #$01
+	BNE sdcard_initialize_error ; if 0x01, try again
+	JMP sdcard_initialize_loop
+sdcard_initialize_exit
+	LDA #$01 ; return $01 for success
+	RTS
+	
+; X = low block addr, Y = high block addr, sets A to $00 for error, $01 for success
+; always stores 512 bytes wherever 'sdcard_block' says
+sdcard_readblock
+	PHY
+	PHX
+	JSR spi_disable
+	JSR sdcard_pump
+	JSR longdelay
+	JSR spi_enable
+	LDA #$51 ; CMD17 = 0x40 + 0x11 (17 in hex)
+	JSR sdcard_sendbyte
+	LDA #$00
+	JSR sdcard_sendbyte
+	TYA
+	JSR sdcard_sendbyte
+	TXA
+	AND #$FE ; only blocks of 512 bytes
+	JSR sdcard_sendbyte
+	LDA #$00
+	JSR sdcard_sendbyte
+	LDA #$01 ; CRC (general)
+	JSR sdcard_sendbyte
+	JSR sdcard_waitresult
+	;CMP #$FF
+	;BEQ sdcard_readblock_error
+	CMP #$00
+	BNE sdcard_readblock_error ; expecting 0x00
+	JSR sdcard_waitresult
+	CMP #$FF
+	BEQ sdcard_readblock_error
+	CMP #$FE
+	BNE sdcard_readblock_error ; data packet starts with 0xFE
+	LDY #$02
+	LDX #$00
+	LDA sdcard_block+0
+	STA sub_write+1
+	LDA sdcard_block+1
+	STA sub_write+2
+	JMP sdcard_readblock_loop
+sdcard_readblock_error
+	PLX
+	PLY
+	LDA #$00 ; return $00 for error
+	RTS
+sdcard_readblock_loop
+	JSR sdcard_receivebyte
+	JSR sub_write
+	INC sub_write+1
+	BNE sdcard_readblock_increment
+	INC sub_write+2
+sdcard_readblock_increment
+	INX
+	BNE sdcard_readblock_loop
+	DEY
+	BNE sdcard_readblock_loop
+	JSR sdcard_receivebyte ; data packet ends with 0x55
+	JSR sdcard_receivebyte ; and then 0xAA, ignore here
+	JSR spi_disable
+	PLX
+	PLY
+	LDA #$01 ; return $01 for success
+	RTS
+
+; X = low block addr, Y = high block addr, sets A to $00 for error, $01 for success
+; always takes 512 bytes wherever 'sdcard_block' says
+sdcard_writeblock
+	PHY
+	PHX
+	JSR spi_disable
+	JSR sdcard_pump
+	JSR longdelay
+	JSR spi_enable
+	LDA #$58 ; CMD24 = 0x40 + 0x18 (24 in hex)
+	JSR sdcard_sendbyte
+	LDA #$00
+	JSR sdcard_sendbyte
+	TYA
+	JSR sdcard_sendbyte
+	TXA
+	AND #$FE ; only blocks of 512 bytes
+	JSR sdcard_sendbyte
+	LDA #$00
+	JSR sdcard_sendbyte
+	LDA #$01 ; CRC (general)
+	JSR sdcard_sendbyte
+	JSR sdcard_waitresult
+	;CMP #$FF
+	;BEQ sdcard_writeblock_error
+	CMP #$00
+	BNE sdcard_writeblock_error ; expecting 0x00
+	LDA #$FE ; data packet starts with 0xFE
+	JSR sdcard_sendbyte
+	LDY #$02
+	LDX #$00
+	LDA sdcard_block+0
+	STA sub_read+1
+	LDA sdcard_block+1
+	STA sub_read+2
+	JMP sdcard_writeblock_loop
+sdcard_writeblock_error
+	PLX
+	PLY
+	LDA #$00 ; return $00 for error
+	RTS
+sdcard_writeblock_loop
+	JSR sub_read
+	JSR sdcard_sendbyte
+	INC sub_read+1
+	BNE sdcard_writeblock_increment
+	INC sub_read+2
+sdcard_writeblock_increment
+	INX
+	BNE sdcard_writeblock_loop
+	DEY
+	BNE sdcard_writeblock_loop
+	LDA #$55 ; data packet ends with 0x55
+	JSR sdcard_sendbyte
+	LDA #$AA ; and then 0xAA
+	JSR sdcard_sendbyte
+	JSR sdcard_receivebyte ; toggles clock 8 times, ignore
+	JSR spi_disable
+	PLY
+	PLX
+	LDA #$01 ; return $01 for success
+	RTS
+
+
+longdelay
+	PHA
+	PHX
+	PHY
+	LDA #$FF ; arbitrary values
+	LDX #$80
+	LDY #$01
+longdelay_loop
+	DEC A
+	BNE longdelay_loop
+	DEX
+	BNE longdelay_loop
+	DEY
+	BNE longdelay_loop
+	PLY
+	PLX
+	PLA
 	RTS
 
 
@@ -7445,6 +7442,10 @@ printchar_normal ; normal characters
 	PHA
 	SEC
 	SBC #$20
+	CMP #$5F ; delete character becomes space
+	BNE printchar_transfer
+	LDA #$00
+printchar_transfer
 	TAX
 	LDA #<key_bitmap
 	STA printchar_read+1
@@ -7519,11 +7520,7 @@ printchar_move_original
 	STA printchar_storage
 	PLA
 	EOR #$FF
-	EOR printchar_inverse
-	AND printchar_background
-	ORA printchar_storage
-	JSR printchar_write
-	RTS
+	JMP printchar_move_print
 printchar_move_inverted
 	JSR printchar_read
 	PHA
@@ -7532,6 +7529,7 @@ printchar_move_inverted
 	AND printchar_foreground
 	STA printchar_storage
 	PLA
+printchar_move_print
 	EOR printchar_inverse
 	AND printchar_background
 	ORA printchar_storage
@@ -7590,27 +7588,8 @@ printchar_clearscreen_loop
 	STZ printchar_y
 	JMP printchar_exit
 
-longdelay
-	PHA
-	PHX
-	PHY
-	LDA #$FF ; arbitrary values
-	LDX #$80
-	LDY #$01
-longdelay_loop
-	DEC A
-	BNE longdelay_loop
-	DEX
-	BNE longdelay_loop
-	DEY
-	BNE longdelay_loop
-	PLY
-	PLX
-	PLA
-	RTS
 
-
-	.ORG $F700
+	.ORG $F700 ; needed to put the tables on start of pages
 
 
 ; converts PS/2 codes to ASCII
@@ -7843,10 +7822,60 @@ key_bitmap
 	.BYTE $03,$C0,$03,$C0,$3F,$00,$00,$00
 	.BYTE $00,$00,$00,$00,$00,$00,$3F,$3C
 	.BYTE $F3,$3C,$F3,$F0,$00,$00,$00,$00
-	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
-	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
+	;.BYTE $00,$00,$00,$00,$00,$00,$00,$00
+	;.BYTE $00,$00,$00,$00,$00,$00,$00,$00
 
-	
+
+spi_enable
+	PHA
+	LDA via_pb
+	AND #spi_cs_inv
+	STA via_pb
+	PLA
+	RTS
+
+spi_disable
+	PHA
+	LDA via_pb
+	ORA #spi_cs
+	STA via_pb
+	PLA
+	RTS
+
+spi_output_low
+	PHA
+	LDA via_pb
+	AND #spi_mosi_inv
+	STA via_pb
+	PLA
+	RTS
+
+spi_output_high
+	PHA
+	LDA via_pb
+	ORA #spi_mosi
+	STA via_pb
+	PLA
+	RTS
+
+spi_input ; results in $00 or $80
+	LDA via_pb
+	AND #spi_miso
+	CLC
+	ROL A
+	RTS
+
+spi_toggle
+	PHA
+	LDA via_pb
+	ORA #spi_clk
+	STA via_pb
+	; delay here?
+	AND #spi_clk_inv
+	STA via_pb
+	PLA
+	RTS
+
 
 ; upon move/button change
 mouse_isr
@@ -7883,7 +7912,7 @@ mouse_isr_parity
 mouse_isr_input
 	LDA #%00001100 ; CA2 low output, CA1 falling edge
 	STA via_pcr
-	JSR longdelay ; 100ms minimum
+	JSR longdelay ; 100ms minimum delay
 	JSR longdelay
 	JSR longdelay
 	JSR longdelay
@@ -7928,13 +7957,6 @@ mouse_isr_store
 	CMP #$4B
 	BEQ mouse_isr_pos_y
 	; error
-	PLA
-	RTI					; and exit
-mouse_isr_check
-	CMP #$0B ; reset counter		; 1 start bit, 8 data bits, 1 parity bit, 1 stop bit = 11 bits to complete a full signal
-	BEQ mouse_isr_reset
-	PLA
-	RTI					; and exit
 mouse_isr_reset
 	STZ mouse_counter			; reset the counter
 	LDA mouse_state
@@ -7942,7 +7964,12 @@ mouse_isr_reset
 	BEQ mouse_isr_input
 mouse_isr_exit
 	PLA
-	RTI
+	RTI				; and exit
+mouse_isr_check
+	CMP #$0B ; reset counter		; 1 start bit, 8 data bits, 1 parity bit, 1 stop bit = 11 bits to complete a full signal
+	BEQ mouse_isr_reset
+	PLA
+	RTI					; and exit
 mouse_isr_buttons
 	LDA mouse_data
 	STA mouse_buttons
@@ -7984,7 +8011,6 @@ int_init
 	
 	RTS
 
-
 via_init
 	LDA #%10111111 ; PB is mostly output
 	STA via_db
@@ -7999,7 +8025,7 @@ via_init
 
 	STZ key_write
 	STZ key_read
-	STZ key_data
+	;STZ key_data
 	STZ key_counter
 	STZ key_release
 	STZ key_extended
@@ -8014,7 +8040,7 @@ via_init
 	STA mouse_prev_y
 	STZ mouse_buttons
 	STZ mouse_prev_buttons
-	STZ mouse_data
+	;STZ mouse_data
 	STZ mouse_counter
 	STZ mouse_state
 
@@ -8095,8 +8121,13 @@ joy_isr_clock
 	PLA
 	RTI
 
-
-; unused space here
+bank_switch
+	LDA via_pb
+	ORA #%00100000
+	STA via_pb
+	NOP
+	NOP
+	JMP vector_reset
 
 
 	.ORG $FFFA ; vectors
