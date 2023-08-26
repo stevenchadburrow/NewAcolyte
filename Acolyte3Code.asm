@@ -368,6 +368,7 @@ defense_reset
 	ROR A
 	CLC
 	ADC defense_score_value
+	INC A
 	STA defense_score_value
 	LDA defense_ammo_constant
 	CLC
@@ -2171,7 +2172,7 @@ intruder_draw_player_loop
 	BCC intruder_draw_player_loop
 	INC sub_write+2
 	LDA sub_write+2
-	CMP #$7A
+	CMP #$79
 	BCC intruder_draw_player_loop
 	LDA intruder_missile_pos_y
 	BNE intruder_draw_missile
@@ -2993,8 +2994,8 @@ intruder_player_data
 	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
 	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
 	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
+	;.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
+	;.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
 
 intruder_shield_data
 	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
@@ -5120,9 +5121,11 @@ basic_num_clear
 	CPX #$10
 	BNE basic_num_clear
 basic_num_loop
-	JSR basic_escape_check ; replaces inputchar
+	JSR inputchar
 	CMP #$00
 	BEQ basic_num_loop
+	CMP #$1B ; escape
+	BEQ basic_num_escape
 	CMP #$0D
 	BEQ basic_num_return
 	CMP #$08
@@ -5138,8 +5141,10 @@ basic_num_loop
 	CMP #$3A ; 9 + 1
 	BCS basic_num_loop
 basic_num_print
+	PHX
 	LDX printchar_x
 	STA basic_keys,X
+	PLX
 	JSR printchar
 	LDA #$10 ; cursor
 	JSR printchar
@@ -5148,30 +5153,36 @@ basic_num_print
 	CMP #$10
 	BCC basic_num_loop
 	JMP basic_num_return
+basic_num_escape
+	LDA #$0D ; return
+	JSR printchar
+	PLA
+	PLA
+	JMP basic_prompt
 basic_num_exit
 	RTS
 basic_num_backspace
-	PHA
 	LDA #$10 ; cursor
 	JSR printchar
-	PLA
+	LDA #$08
 	JSR printchar
 	LDA #$10 ; cursor
 	JSR printchar
 	JMP basic_num_loop
 basic_num_tab
-	PHA
 	LDA #$10 ; cursor
 	JSR printchar
-	PLA
+	PHX
 	LDX printchar_x
 	LDA basic_keys,X
+	PLX
 	CMP #$00
 	BEQ basic_num_tab_cursor
-	JSR printchar
+	INC printchar_x
 	LDA printchar_x
+	CLC
 	CMP #$10
-	BNE basic_num_tab_cursor
+	BCC basic_num_tab_cursor
 	DEC printchar_x
 basic_num_tab_cursor
 	LDA #$10 ; cursor
