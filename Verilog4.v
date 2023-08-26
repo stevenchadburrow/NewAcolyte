@@ -49,21 +49,17 @@ reg [5:0] video_data;
 reg hblank;
 reg vblank;
 reg hscreen;
-
 reg [7:0] color;
 
 assign address[6:0] = ((~phi2 && ~half) ? video_addr[6:0] : ((~phi2) ? video_addr[16:10] : 7'bzzzzzzz));
 assign address[7] = ((~phi2 && ~half) ? video_addr[9] : ((~phi2) ? 1'b0 : 1'bz));
-
 assign last = (phi2 && half) ? 1'b1 : 1'b0;
 assign via = (phi2 && address[7:0] == 8'b00000111) ? 1'b0 : 1'b1;
 assign ram = (~phi2 || (phi2 && ~(address[7] && address[6]) && via)) ? 1'b0 : 1'b1;
 assign rom = ((phi2 && address[7] && address[6])) ? 1'b0 : 1'b1;
 assign oe = (~phi2 || rw) ? 1'b0 : 1'b1;
 assign we = (phi2 && half && ~rw) ? 1'b0 : 1'b1;
-
 assign addr16 = (phi2 && address[7] && bank) ? 1'b1 : 1'b0;
-
 assign latch = (~phi2 && ~half && master_clock) ? 1'b0 : 1'b1;
 
 initial begin
@@ -74,6 +70,21 @@ always @(posedge master_clock) begin
 	//if (~latch) begin
 	//	latch <= 1'b1;
 	//end
+	
+	if (~hblank && hscreen && vblank) begin
+		red <= 1'b0;
+		green <= 1'b0;
+		blue <= 1'b0;
+		intensity <= 1'b1;
+	end
+	
+	if (~hblank && ~(hscreen && vblank)) begin
+		red <= 1'b0;
+		green <= 1'b0;
+		blue <= 1'b0;
+		intensity <= 1'b0;
+	end
+	
 
 	if (half) begin
 		if (phi2) begin
@@ -112,20 +123,6 @@ always @(posedge master_clock) begin
 						blue <= color[5];
 						intensity <= color[4];
 					end
-				end
-			end
-			else begin
-				if (hscreen && vblank) begin
-					red <= 1'b1;
-					green <= 1'b1;
-					blue <= 1'b1;
-					intensity <= 1'b0;
-				end
-				else begin
-					red <= 1'b0;
-					green <= 1'b0;
-					blue <= 1'b0;
-					intensity <= 1'b0;
 				end
 			end
 			
@@ -170,20 +167,6 @@ always @(posedge master_clock) begin
 						blue <= color[5];
 						intensity <= color[4];
 					end
-				end
-			end
-			else begin
-				if (hscreen && vblank) begin
-					red <= 1'b1;
-					green <= 1'b1;
-					blue <= 1'b1;
-					intensity <= 1'b0;
-				end
-				else begin
-					red <= 1'b0;
-					green <= 1'b0;
-					blue <= 1'b0;
-					intensity <= 1'b0;
 				end
 			end
 			
@@ -252,20 +235,6 @@ always @(posedge master_clock) begin
 					end
 				end
 			end
-			else begin
-				if (hscreen && vblank) begin
-					red <= 1'b1;
-					green <= 1'b1;
-					blue <= 1'b1;
-					intensity <= 1'b0;
-				end
-				else begin
-					red <= 1'b0;
-					green <= 1'b0;
-					blue <= 1'b0;
-					intensity <= 1'b0;
-				end
-			end
 			
 		end
 		else begin
@@ -296,20 +265,6 @@ always @(posedge master_clock) begin
 						blue <= color[5];
 						intensity <= color[4];
 					end
-				end
-			end
-			else begin
-				if (hscreen && vblank) begin
-					red <= 1'b1;
-					green <= 1'b1;
-					blue <= 1'b1;
-					intensity <= 1'b0;
-				end
-				else begin
-					red <= 1'b0;
-					green <= 1'b0;
-					blue <= 1'b0;
-					intensity <= 1'b0;
 				end
 			end
 			
