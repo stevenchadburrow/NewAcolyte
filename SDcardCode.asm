@@ -8,12 +8,111 @@
 ; ~/dev65/bin/as65 SDcardCode.asm
 
 ; Second, run
-; ./Parser.o SDcardCode.lst SDcardCode.bin 0 0 32768 0
+; ./Parser.o SDcardCode.lst SDcardCode.bin 0 16384 32768 0
+
+; This technically starts at $4000 on the SD card!!!
 
 ; Third, run
 ; sudo dd if=SDcardCode.bin of=/dev/sdd bs=1M conv=fsync
 
+
+
+
+; Acolyte Computer
+
+; Running a W65C02 at 6.29 MHz
+
+; VGA display at
+; 256x240 16-color
+; and
+; 512x240 4-color
+
+; Support for
+; PS/2 Keyboard and Mouse
+; Genesis Gamepad
+; SPI SDcard
+; 2-Voice Square Wave Audio
+
+; Memory Map
+; $0000-$01FF = Zero Page / Stack
+; $0200-$06FF = System RAM
+; $0700-$07FF = VIA
+; $0800-$7FFF = Video RAM
+; $8000-$BFFF = General Purpose RAM (2x banks)
+; $C000-$FFFF = ROM (2x banks)
+
+; Writing to ROM changes the video mode
+; If writing $00 to ROM, video mode is 256x240 16-color
+; Else, the upper and lower nibbles determine the colors
+; used in 512x240 4-color mode.  
+; Black and White are always available, but other two
+; colors are defined when entering that mode.
+
+; VIA pins
+; PA0 = JOY-UP
+; PA1 = JOY-DOWN
+; PA2 = JOY-LEFT (with 10K pull-up)
+; PA3 = JOY-RIGHT (with 10K pull-up)
+; PA4 = JOY-BUTTON1
+; PA5 = JOY-BUTTON2
+; PA6 = MOUSE-DATA
+; PA7 = KEY-DATA
+; CA1 = KEY-CLOCK
+; CA2 = MOUSE-CLOCK
+; PB0 = SPI-CLOCK
+; PB1 = SPI-MOSI
+; PB2 = SPI-CS (for SDCARD)
+; PB3 = JOY-SELECT
+; PB4 = RAM-BANK
+; PB5 = ROM-BANK
+; PB6 = SPI-MISO
+; PB7 = AUDIO-CH-A
+; CB1 = AUDIO-CH-B
+; CB2 = Unused
+
+; /NMI is connected to V-SYNC through a bodge wire
+
+
 	.65C02
+
+
+; PS/2 Keyboard Keycodes
+ps2_space		.EQU $29
+ps2_return		.EQU $5A
+ps2_backspace		.EQU $66
+ps2_escape		.EQU $76
+ps2_shift_left		.EQU $12
+ps2_shift_right		.EQU $59
+ps2_capslock		.EQU $58
+ps2_numlock		.EQU $77
+ps2_scrolllock		.EQU $7E
+ps2_control		.EQU $14
+ps2_alt			.EQU $11
+ps2_tab			.EQU $0D
+ps2_page_up		.EQU $7D
+ps2_page_down		.EQU $7A
+ps2_arrow_up		.EQU $75
+ps2_arrow_down		.EQU $72
+ps2_arrow_left		.EQU $6B
+ps2_arrow_right		.EQU $74
+ps2_insert		.EQU $70
+ps2_delete		.EQU $71
+ps2_home		.EQU $6C
+ps2_end			.EQU $69
+ps2_slash		.EQU $4A
+ps2_f1			.EQU $05
+ps2_f2			.EQU $06
+ps2_f3			.EQU $04
+ps2_f4			.EQU $0C
+ps2_f5			.EQU $03
+ps2_f6			.EQU $0B
+ps2_f7			.EQU $83
+ps2_f8			.EQU $0A
+ps2_f9			.EQU $01
+ps2_f10			.EQU $09
+ps2_f11			.EQU $78
+ps2_f12			.EQU $07
+
 
 ; VIA locations
 
@@ -22,6 +121,9 @@ via_pb			.EQU via+$00
 via_pa			.EQU via+$01
 via_db			.EQU via+$02
 via_da			.EQU via+$03
+via_t1cl		.EQU via+$04
+via_t1ch		.EQU via+$05
+via_acr			.EQU via+$0B
 via_pcr			.EQU via+$0C
 via_ifr			.EQU via+$0D
 via_ier			.EQU via+$0E
@@ -44,82 +146,192 @@ joy_select_inv		.EQU %11110111
 
 key_array		.EQU $0200
 
-key_write		.EQU $0300
-key_read		.EQU $0301
-key_data		.EQU $0302
-key_counter		.EQU $0303
-key_release		.EQU $0304
-key_extended		.EQU $0305
-key_shift		.EQU $0306
-key_capslock		.EQU $0307
-key_alt_control		.EQU $0308
-sub_jump		.EQU $0309 ; 3 bytes long
-sub_read		.EQU $030C ; 4 bytes long
-sub_index		.EQU $0310 ; 4 bytes long
-sub_write		.EQU $0314 ; 4 bytes long
-vector_irq		.EQU $0318 ; 3 bytes long
-sub_random_var		.EQU $031B
-vector_nmi		.EQU $031C ; 3 bytes long
-sub_random		.EQU $031F ; 16 bytes long
-sub_inputchar		.EQU $0330 ; 3 bytes long
-printchar_inverse	.EQU $0333 ; either $00 or $FF
-sub_printchar		.EQU $0334 ; 3 bytes long
-printchar_storage	.EQU $0337
-printchar_x		.EQU $0338 ; from $00 to $3F
-printchar_y		.EQU $0339 ; from $00 to $1D
-printchar_foreground	.EQU $033A ; either $00, $55, $AA, or $FF
-printchar_background	.EQU $033B ; either $00, $55, $AA, or $FF
-printchar_read		.EQU $033C ; 4 bytes long
-printchar_write		.EQU $0340 ; 4 bytes long
-colorchar_input		.EQU $0344
-colorchar_output	.EQU $0345
-monitor_mode		.EQU $0346
-monitor_nibble		.EQU $0347
-monitor_values		.EQU $0358 ; 8 bytes long
-tetra_score_low		.EQU $0350
-tetra_score_high	.EQU $0351
-tetra_piece		.EQU $0352
-tetra_piece_next	.EQU $0353
-tetra_location		.EQU $0354
-tetra_speed		.EQU $0355
-tetra_overscan		.EQU $0356
-tetra_joy_prev		.EQU $0357
-tetra_values		.EQU $0358 ; 3 bytes
-joy_buttons		.EQU $035B
-sdcard_block		.EQU $035C ; 2 bytes 
-clock_low		.EQU $035E
-clock_high		.EQU $035F
-basic_variables_low	.EQU $0360 ; 26 bytes
-basic_variables_high	.EQU $037A ; 26 bytes
-basic_line_low		.EQU $0394
-basic_line_high		.EQU $0395
-basic_value1_low	.EQU $0396
-basic_value1_high	.EQU $0397
-basic_value2_low	.EQU $0398
-basic_value2_high	.EQU $0399
-basic_value3_low	.EQU $039A
-basic_value3_high	.EQU $039B
-basic_value4_low	.EQU $039C
-basic_value4_high	.EQU $039D
-basic_character		.EQU $039E
-basic_operator		.EQU $039F
-basic_keys		.EQU $03A0 ; 16 bytes long
-basic_keys_plus_one	.EQU $03A1 
-basic_wait_end		.EQU $03B0
-basic_wait_delete	.EQU $03B1
-sub_sdcard_initialize	.EQU $03B2 ; 3 bytes
-sub_sdcard_readblock	.EQU $03B5 ; 3 bytes
-sub_sdcard_writeblock	.EQU $03B8 ; 3 bytes
+key_write		.EQU $0280
+key_read		.EQU $0281
+key_data		.EQU $0282
+key_counter		.EQU $0283
+key_release		.EQU $0284
+key_extended		.EQU $0285
+key_shift		.EQU $0286
+key_capslock		.EQU $0287
+key_alt_control		.EQU $0288
+
+mouse_buttons		.EQU $0289
+mouse_pos_x		.EQU $028A
+mouse_pos_y		.EQU $028B
+mouse_prev_buttons	.EQU $028C
+mouse_prev_x		.EQU $028D
+mouse_prev_y		.EQU $028E
+mouse_data		.EQU $028F
+mouse_counter		.EQU $0290
+mouse_state		.EQU $0291
+
+joy_buttons		.EQU $0292
+
+tetra_score_low		.EQU $0293
+tetra_score_high	.EQU $0294
+tetra_piece		.EQU $0295
+tetra_piece_next	.EQU $0296
+tetra_location		.EQU $0297
+tetra_speed		.EQU $0298
+tetra_overscan		.EQU $0299
+tetra_joy_prev		.EQU $029A
+tetra_values		.EQU $029B ; 3 bytes
+
+monitor_mode		.EQU $029E
+monitor_nibble		.EQU $029F
+monitor_values		.EQU $02A0 ; 8 bytes long
+
+sub_jump		.EQU $02A8 ; 3 bytes long
+sub_random_var		.EQU $02AB
+sub_read		.EQU $02AC ; 4 bytes long
+sub_index		.EQU $02B0 ; 4 bytes long
+sub_write		.EQU $02B4 ; 4 bytes long
+
+vector_irq		.EQU $02B8 ; 4 bytes long
+vector_nmi		.EQU $02BC ; 4 bytes long
+
+sub_inputchar		.EQU $02C0 ; 4 bytes long
+sub_printchar		.EQU $02C4 ; 4 bytes long
+
+printchar_x		.EQU $02C8 ; from $00 to $3F
+printchar_y		.EQU $02C9 ; from $00 to $1D
+printchar_foreground	.EQU $02CA ; either $00, $55, $AA, or $FF
+printchar_background	.EQU $02CB ; either $00, $55, $AA, or $FF
+printchar_inverse	.EQU $02CC ; either $00 or $FF
+printchar_storage	.EQU $02CD
+colorchar_input		.EQU $02CE
+colorchar_output	.EQU $02CF
+printchar_read		.EQU $02D0 ; 4 bytes long
+printchar_write		.EQU $02D4 ; 4 bytes long
+
+sub_sdcard_initialize	.EQU $02D8 ; 4 bytes
+sub_sdcard_readblock	.EQU $02DC ; 4 bytes
+sub_sdcard_writeblock	.EQU $02E0 ; 4 bytes
+
+sdcard_block		.EQU $02E4 ; 2 bytes 
+
+basic_line_low		.EQU $02E6
+basic_line_high		.EQU $02E7
+basic_value1_low	.EQU $02E8
+basic_value1_high	.EQU $02E9
+basic_value2_low	.EQU $02EA
+basic_value2_high	.EQU $02EB
+basic_value3_low	.EQU $02EC
+basic_value3_high	.EQU $02ED
+basic_value4_low	.EQU $02EE
+basic_value4_high	.EQU $02EF
+basic_character		.EQU $02F0
+basic_operator		.EQU $02F1
+basic_wait_end		.EQU $02F2
+basic_wait_delete	.EQU $02F3
+
+scratchpad_lastchar	.EQU $02F4
+
+function_mode		.EQU $02F5
+
+defense_joy_prev	.EQU $02F6
+defense_key_space	.EQU $02F7
+defense_key_up		.EQU $02F8
+defense_key_down	.EQU $02F9
+defense_key_left	.EQU $02FA
+defense_key_right	.EQU $02FB
+defense_pop_value	.EQU $02FC
+defense_score_value	.EQU $02FD
+
+clock_low		.EQU $02FE
+clock_high		.EQU $02FF
+
+sub_random		.EQU $0300 ; 18 bytes long
+
+basic_variables_low	.EQU $0312 ; 26 bytes
+basic_variables_high	.EQU $032C ; 26 bytes
+
+basic_keys		.EQU $0346 ; 16 bytes long
+basic_keys_plus_one	.EQU $0347
+
+defense_ammo_value	.EQU $0356
+defense_dist_value	.EQU $0357
+defense_enemy_value	.EQU $0358
+defense_stop_value	.EQU $0359
+defense_round_value	.EQU $035A
+defense_enemy_constant	.EQU $035B
+defense_speed_constant	.EQU $035C
+defense_random_constant	.EQU $035D
+defense_ammo_constant	.EQU $035E
+defense_paused		.EQU $035F
+
 ; unused
+
 command_string		.EQU $03C0 ; 64 bytes long
 
 tetra_field		.EQU $0400 ; 256 bytes long
+
+defense_missile_x	.EQU $0400 ; 16 bytes long
+defense_missile_y	.EQU $0410 ; 16 bytes long
+defense_target_x	.EQU $0420 ; 16 bytes long
+defense_target_y	.EQU $0430 ; 16 bytes long
+defense_slope_x		.EQU $0440 ; 16 bytes long
+defense_slope_y		.EQU $0450 ; 16 bytes long
+defense_count_x		.EQU $0460 ; 16 bytes long
+defense_count_y		.EQU $0470 ; 16 bytes long
+defense_prev1_x		.EQU $0480 ; 8 bytes long
+defense_prev1_y		.EQU $0488 ; 8 bytes long
+defense_prev2_x		.EQU $0490 ; 8 bytes long
+defense_prev2_y		.EQU $0498 ; 8 bytes long
+defense_prev3_x		.EQU $04A0 ; 8 bytes long
+defense_prev3_y		.EQU $04A8 ; 8 bytes long
+defense_prev4_x		.EQU $04B0 ; 8 bytes long
+defense_prev4_y		.EQU $04B8 ; 8 bytes long
+defense_prev5_x		.EQU $04C0 ; 8 bytes long
+defense_prev5_y		.EQU $04C8 ; 8 bytes long
+defense_prev6_x		.EQU $04D0 ; 8 bytes long
+defense_prev6_y		.EQU $04D8 ; 8 bytes long
+defense_prev7_x		.EQU $04E0 ; 8 bytes long
+defense_prev7_y		.EQU $04E8 ; 8 bytes long
+defense_prev8_x		.EQU $04F0 ; 8 bytes long
+defense_prev8_y		.EQU $04F8 ; 8 bytes long
+
+intruder_player_pos	.EQU $0400 ; reusing memory location
+intruder_player_lives	.EQU $0401
+intruder_missile_pos_x	.EQU $0402
+intruder_missile_pos_y	.EQU $0403
+intruder_enemy_fall	.EQU $0404
+intruder_enemy_pos_x	.EQU $0405
+intruder_enemy_pos_y	.EQU $0406
+intruder_enemy_dir_x	.EQU $0407
+intruder_enemy_speed	.EQU $0408
+intruder_enemy_miss_s	.EQU $0409
+intruder_enemy_miss_x	.EQU $040A
+intruder_enemy_miss_y	.EQU $040B
+intruder_delay_timer	.EQU $040C
+intruder_button_left	.EQU $040D
+intruder_button_right	.EQU $040E
+intruder_button_fire	.EQU $040F
+intruder_mystery_pos	.EQU $0410
+intruder_mystery_speed	.EQU $0411
+intruder_points_low	.EQU $0412
+intruder_points_high	.EQU $0413
+intruder_level		.EQU $0414
+intruder_overall_delay	.EQU $0415
+intruder_mystery_bank	.EQU $0416
+intruder_char_value	.EQU $0417
+intruder_color_current	.EQU $0418
+intruder_paused		.EQU $0419
+intruder_joy_prev	.EQU $041A
+; unused
+intruder_enemy_visible	.EQU $0420
 
 basic_memory		.EQU $8000 ; 16KB available
 basic_memory_end	.EQU $C000 ; one past
 
 
-	.ORG $0000
+
+
+
+
+
+	.ORG $0000 ; this is half-lying, it actually starts at $4000
 
 	LDA #$00
 	STA $FFFF ; 16 color mode
@@ -129,7 +341,7 @@ basic_memory_end	.EQU $C000 ; one past
 	LDA #$08
 	STA sdcard_block+1
 
-	LDX #$02
+	LDX #$42 ; 16KB for user save/load
 	LDY #$00
 
 loop
@@ -141,7 +353,7 @@ loop
 	INX
 	INX
 
-	CPX #$78
+	CPX #$B8
 	BNE loop
 
 
