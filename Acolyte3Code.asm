@@ -3577,7 +3577,7 @@ tetra_lines
 	LDY #$00
 tetra_lines_loop
 	LDA tetra_field,X
-	CMP #$55 ; blue
+	CMP #tetra_color_fore
 	BNE tetra_lines_check
 	INY
 tetra_lines_check
@@ -3639,7 +3639,7 @@ tetra_lines_increment
 	BEQ tetra_lines_exit
 	CMP #$04
 	BNE tetra_lines_exit
-	LDA #$FF ; draw
+	;LDA #$FF ; draw
 	;JSR easter_egg	
 tetra_lines_exit
 	PLY
