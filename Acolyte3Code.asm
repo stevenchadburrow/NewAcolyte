@@ -8127,7 +8127,7 @@ bank_switch
 	STA via_pb
 	NOP
 	NOP
-	JMP vector_reset
+	JMP function_keys_scratchpad
 
 
 	.ORG $FFFA ; vectors
