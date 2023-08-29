@@ -257,7 +257,26 @@ defense_random_constant	.EQU $035D
 defense_ammo_constant	.EQU $035E
 defense_paused		.EQU $035F
 
-; unused
+line_x1			.EQU $0360
+line_y1			.EQU $0361
+line_x2			.EQU $0362
+line_y2			.EQU $0363
+line_color		.EQU $0364
+line_slope_x		.EQU $0365
+line_slope_y		.EQU $0366
+line_count_x		.EQU $0367
+line_count_y		.EQU $0368
+fill_x			.EQU $0369
+fill_y			.EQU $036A
+fill_color		.EQU $036B
+fill_corner_x		.EQU $036C
+fill_corner_y		.EQU $036D
+fill_dir_y		.EQU $036F
+fill_color_held		.EQU $0370
+fill_start_x		.EQU $036E
+fill_prev_x		.EQu $0371
+
+
 
 command_string		.EQU $03C0 ; 64 bytes long
 
@@ -315,7 +334,7 @@ intruder_char_value	.EQU $0417
 intruder_color_current	.EQU $0418
 intruder_paused		.EQU $0419
 intruder_joy_prev	.EQU $041A
-; unused
+
 intruder_enemy_visible	.EQU $0420
 
 basic_memory		.EQU $8000 ; 16KB available
@@ -330,8 +349,20 @@ basic_memory_end	.EQU $C000 ; one past
 
 vector_reset
 
-	LDA #$E1 ; produces greyscale
-	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
+
+	JSR int_init
+	JSR via_init
+	JSR joy_init
+	JSR setup
+
+
+
+	;LDA #$E1 ; produces greyscale
+	;STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
+	
+	LDA #$00 ; produces 16-colors
+	STA $FFFF
+
 
 	LDA #$0C ; form feed
 	JSR printchar
@@ -391,6 +422,53 @@ vector_reset
 	LDA #"C"
 	JSR printchar
 
+
+	LDX #$00
+	LDY #$00
+line_coords
+	LDA line_data,X
+	STA line_x1
+	INX
+	LDA line_data,X
+	STA line_y1
+	INX
+	LDA line_data,X
+	STA line_x2
+	INX
+	LDA line_data,X
+	STA line_y2
+	INX
+	LDA line_data,X
+	STA line_color
+	INX
+	JSR line
+	INY
+	CPY #$06
+	BNE line_coords
+
+	
+	LDX #$00
+	LDY #$00
+fill_coords
+	LDA fill_data,X
+	STA fill_x
+	INX
+	LDA fill_data,X
+	STA fill_y
+	INX
+	LDA fill_data,X
+	STA fill_color
+	INX
+	JSR fill
+	INY
+	CPY #$05
+	BNE fill_coords
+
+
+	LDA #"!"
+	JSR printchar
+
+
 inf
 	JSR inputchar
 	CMP #$1B ; escape
@@ -399,7 +477,481 @@ inf
 
 
 
+line_data
+	.BYTE $20,$20, $30,$40, $AA
+	.BYTE $30,$40, $28,$50, $AA
+	.BYTE $28,$50, $20,$20, $AA
+	.BYTE $50,$60, $30,$80, $66
+	.BYTE $30,$80, $90,$70, $66
+	.BYTE $90,$70, $50,$60, $66
+
+fill_data
+	.BYTE $10,$30, $FF
+	.BYTE $90,$30, $FF
+	.BYTE $A0,$68, $FF
+	.BYTE $50,$64, $AA
+	.BYTE $26,$32, $66
+
+
+line
+	PHA
+	STZ line_slope_x
+	STZ line_slope_y
+	LDA line_x1
+	CLC
+	CMP line_x2
+	BEQ line_vertical
+	BCS line_side
+	LDA line_x2
+	SEC
+	SBC line_x1
+	STA line_slope_x
+	JMP line_vertical
+line_side
+	SEC
+	SBC line_x2
+	STA line_slope_x
+line_vertical
+	LDA line_y1
+	CLC
+	CMP line_y2
+	BEQ line_draw
+	BCS line_up
+	LDA line_y2
+	SEC
+	SBC line_y1
+	STA line_slope_y
+	JMP line_draw
+line_up
+	SEC
+	SBC line_y2
+	STA line_slope_y
+line_draw
+	JSR line_pixel
+	STZ line_count_x
+	STZ line_count_y
+line_loop
+	INC line_count_x
+	LDA line_count_x
+	CLC
+	CMP line_slope_y
+	BCC line_next
+	STZ line_count_x
+	LDA line_x1
+	CLC
+	CMP line_x2
+	BEQ line_next
+	BCC line_back
+	DEC line_x1
+	JMP line_next
+line_back
+	INC line_x1
+line_next
+	INC line_count_y
+	LDA line_count_y
+	CLC
+	CMP line_slope_x
+	BCC line_last
+	STZ line_count_y
+	LDA line_y1
+	CLC
+	CMP line_y2
+	BEQ line_last
+	BCC line_fore
+	DEC line_y1
+	JMP line_last
+line_fore
+	INC line_y1
+line_last
+	JSR line_pixel
+	LDA line_x1
+	CMP line_x2
+	BNE line_loop
+	LDA line_y1
+	CMP line_y2
+	BNE line_loop
+	PLA
+	RTS
+line_pixel
+	LDA line_color
+	PHA
+	AND #%11110000
+	STA line_color
+	LDA line_x1
+	CLC
+	ROR A
+	STA sub_write+1
+	STA sub_read+1
+	BCC line_half
+	PLA
+	PHA
+	AND #%00001111
+	STA line_color
+line_half
+	LDA line_y1
+	CLC
+	ROR A
+	STA sub_write+2
+	STA sub_read+2
+	BCC line_dot
+	LDA sub_write+1
+	CLC
+	ADC #$80
+	STA sub_write+1
+	STA sub_read+1
+line_dot
+	LDA sub_write+2
+	CLC
+	CMP #$08
+	BCC line_exit
+	CLC
+	CMP #$80
+	BCS line_exit 
+	JSR sub_read
+	ORA line_color
+	JSR sub_write
+line_exit
+	PLA
+	STA line_color
+	RTS
+
+
+
+fill
+	PHA
+	LDA fill_x
+	STA fill_corner_x
+	LDA fill_y
+	STA fill_corner_y
+	LDA #$FF
+	STA fill_dir_y
+	JSR fill_half
+	LDA fill_corner_x
+	STA fill_x
+	LDA fill_corner_y
+	INC A
+	STA fill_y
+	LDA #$01
+	STA fill_dir_y
+	JSR fill_half
+	PLA
+	RTS
+fill_half
+	LDA fill_color
+	STA fill_color_held
+fill_seek	
+	JSR fill_subs
+	CMP #$00
+	BEQ fill_exit
+	JSR sub_read
+	AND fill_color
+	BEQ fill_decrement
+	JMP fill_increment
+fill_decrement
+	DEC fill_x
+	BNE fill_seek
+fill_increment
+	INC fill_x
+	LDA fill_x
+	STA fill_start_x
+fill_edge
+	JSR fill_subs
+	CMP #$00
+	BEQ fill_exit
+	JSR sub_read
+	AND fill_color
+	BNE fill_row
+	JSR sub_read
+	ORA fill_color
+	JSR sub_write
+	INC fill_x
+	LDA fill_x
+	BEQ fill_row
+	CMP #$FF
+	BEQ fill_row
+	JMP fill_edge
+fill_row
+	LDA fill_x
+	STA fill_prev_x
+	LDA fill_start_x
+	STA fill_x
+	LDA fill_y
+	CLC
+	ADC fill_dir_y
+	STA fill_y
+fill_check
+	JSR fill_subs                                                         
+	CMP #$00
+	BEQ fill_exit
+	JSR sub_read
+	AND fill_color
+	BEQ fill_seek
+	
+	INC fill_x
+	LDA fill_x
+	CLC
+	CMP fill_prev_x
+	BCC fill_check
+fill_exit
+	LDA fill_color_held
+	STA fill_color
+	RTS
+fill_subs ; original fill_color already on stack
+	LDA fill_color_held
+	AND #%11110000
+	STA fill_color
+	LDA fill_x
+	CLC
+	ROR A
+	STA sub_write+1
+	STA sub_read+1
+	BCC fill_next
+	LDA fill_color_held	
+	AND #%00001111
+	STA fill_color
+fill_next
+	LDA fill_y
+	CLC
+	ROR A
+	STA sub_write+2
+	STA sub_read+2
+	BCC fill_dot
+	LDA sub_write+1
+	CLC
+	ADC #$80
+	STA sub_write+1
+	STA sub_read+1
+fill_dot
+	LDA sub_write+2
+	CLC
+	CMP #$08
+	BCC fill_error
+	CLC
+	CMP #$80
+	BCS fill_error
+	LDA #$FF
+	RTS
+fill_error
+	LDA #$00
+	RTS
+
+
+
+
+
+;fill
+;	PHA
+;	LDA fill_x
+;	STA fill_corner_x
+;	LDA fill_y
+;	STA fill_corner_y
+;	LDA #$01
+;	STA fill_dir_x
+;	LDA #$FF
+;	STA fill_dir_y
+;	JSR fill_quad
+;	DEC fill_corner_x
+;	LDA #$FF
+;	STA fill_dir_x
+;	LDA #$FF
+;	STA fill_dir_y
+;	JSR fill_quad
+;	INC fill_corner_y
+;	LDA #$FF
+;	STA fill_dir_x
+;	LDA #$01
+;	STA fill_dir_y
+;	JSR fill_quad
+;	INC fill_corner_x
+;	LDA #$01
+;	STA fill_dir_x
+;	LDA #$01
+;	STA fill_dir_y
+;	JSR fill_quad
+;	DEC fill_corner_y
+;	PLA
+;	RTS
+;fill_quad
+;	PHX
+;	LDA fill_corner_x
+;	STA fill_x
+;	LDA fill_corner_y
+;	STA fill_y
+;	LDA fill_color
+;	PHA
+;	LDX #$00
+;fill_loop
+;	INX
+;	PLA
+;	PHA
+;	AND #%11110000
+;	STA fill_color
+;	LDA fill_x
+;	CLC
+;	ROR A
+;	STA sub_write+1
+;	STA sub_read+1
+;	BCC fill_half
+;	PLA
+;	PHA
+;	AND #%00001111
+;	STA fill_color
+;fill_half
+;	LDA fill_y
+;	CLC
+;	ROR A
+;	STA sub_write+2
+;	STA sub_read+2
+;	BCC fill_dot
+;	LDA sub_write+1
+;	CLC
+;	ADC #$80
+;	STA sub_write+1
+;	STA sub_read+1
+;fill_dot
+;	LDA sub_write+2
+;	CLC
+;	CMP #$08
+;	BCC fill_exit
+;	CLC
+;	CMP #$80
+;	BCS fill_exit
+;	JSR sub_read
+;	AND fill_color
+;	BNE fill_row
+;	JSR sub_read
+;	ORA fill_color
+;	JSR sub_write
+;	LDA fill_x
+;	CLC
+;	ADC fill_dir_x
+;	STA fill_x
+;	BEQ fill_row
+;	CMP #$FF
+;	BEQ fill_row
+;	JMP fill_loop
+;fill_row
+;	CPX #$01
+;	BEQ fill_exit
+;	LDX #$00
+;	LDA fill_corner_x
+;	STA fill_x
+;	LDA fill_y
+;	CLC
+;	ADC fill_dir_y
+;	STA fill_y
+;	JMP fill_loop
+;fill_exit
+;	PLA
+;	STA fill_color
+;	PLX
+;	RTS
+	
+	
+
+
+
+
+
+
+
+
+
+
 ; unused space here
+
+
+
+
+	
+
+setup
+	STZ printchar_inverse ; turn off inverse
+	LDA #$FF ; white 
+	STA printchar_foreground
+	LDA #$00 ; black
+	STA printchar_background
+
+	LDA #$AD ; LDAa
+	STA sub_read+0
+	STA printchar_read+0
+	LDA #$60 ; RTS
+	STA sub_read+3
+	STA printchar_read+3
+
+	LDA #$BD ; LDAax
+	STA sub_index+0
+	LDA #$60 ; RTS
+	STA sub_index+3
+
+	LDA #$8D ; STAa
+	STA sub_write+0
+	STA printchar_write+0
+	LDA #$60 ; RTS
+	STA sub_write+3
+	STA printchar_write+3
+
+	LDA #$4C ; JMPa
+	STA sub_jump+0
+
+	LDA #$4C ; JMPa
+	STA sub_inputchar+0
+	LDA #<inputchar
+	STA sub_inputchar+1
+	LDA #>inputchar
+	STA sub_inputchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_printchar+0
+	LDA #<printchar
+	STA sub_printchar+1
+	LDA #>printchar
+	STA sub_printchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_initialize+0
+	LDA #<sdcard_initialize
+	STA sub_sdcard_initialize+1
+	LDA #>sdcard_initialize
+	STA sub_sdcard_initialize+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_readblock+0
+	LDA #<sdcard_readblock
+	STA sub_sdcard_readblock+1
+	LDA #>sdcard_readblock
+	STA sub_sdcard_readblock+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_writeblock+0
+	LDA #<sdcard_writeblock
+	STA sub_sdcard_writeblock+1
+	LDA #>sdcard_writeblock
+	STA sub_sdcard_writeblock+2
+
+	STZ sub_random_var
+
+	LDX #$10
+setup_random_loop
+	LDA setup_random_code,X
+	STA sub_random,X
+	DEX
+	CPX #$FF
+	BNE setup_random_loop
+
+	;JSR basic_clear
+
+	RTS
+
+setup_random_code
+	.BYTE $AD
+	.WORD sub_random_var
+	.BYTE $2A,$18,$2A,$18,$6D
+	.WORD sub_random_var
+	.BYTE $18,$69,$11,$8D
+	.WORD sub_random_var
+	.BYTE $60
+
 
 
 

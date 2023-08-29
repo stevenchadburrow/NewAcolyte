@@ -327,6 +327,7 @@ intruder_char_value	.EQU $0417
 intruder_color_current	.EQU $0418
 intruder_paused		.EQU $0419
 intruder_joy_prev	.EQU $041A
+intruder_fire_delay	.EQU $041B
 ; unused
 intruder_enemy_visible	.EQU $0420
 
@@ -361,7 +362,8 @@ defense
 	LDA #$0A ; arbitrary amount of initial population
 	STA defense_pop_value
 	STZ defense_score_value
-	STZ defense_round_value
+	LDA #$08
+	STA defense_round_value
 	LDA #$20
 	STA defense_ammo_constant
 	LDA #$0A
@@ -394,19 +396,24 @@ defense_reset
 	CLC
 	ADC #$02
 	STA defense_random_constant
+	DEC defense_round_value
 	LDA defense_round_value
 	CLC
 	CMP #$03
-	BCC defense_start
-	STZ defense_round_value
+	BCS defense_start
+	LDA #$08
+	STA defense_round_value
 	DEC defense_speed_constant
 	LDA defense_speed_constant
-	CMP #$02
+	CMP #$03
 	BCS defense_start
-	INC defense_speed_constant
+	
+	LDA #$08
+	STA defense_round_value
+	LDA #$05
+	STA defense_speed_constant
 
 defense_start
-	INC defense_round_value
 	STZ mouse_prev_x
 	STZ mouse_prev_y
 	LDA #$08
@@ -1368,7 +1375,7 @@ defense_draw_move_missile
 	BNE defense_draw_missile_color
 defense_draw_missile_check
 	CLC
-	CPY #$03 ; arbitrary speed of missiles
+	CPY defense_round_value ; arbitrary speed of missiles
 	BCS defense_draw_missile_white
 	JMP defense_draw_move_counter
 defense_draw_missile_white
@@ -1836,7 +1843,7 @@ intruder_max_enemies		.EQU $2F ; $2F, a constant
 intruder_color_enemy		.EQU $77 ; constant
 intruder_color_shield		.EQU $AA ; constant
 intruder_color_missile		.EQU $DD ; constant
-intruder_color_mystery		.EQU $DD ; constant
+intruder_color_mystery		.EQU $FF ; constant
 
 intruder
 	LDA #$00
@@ -1847,11 +1854,11 @@ intruder
 intruder_level_enemy_fall
 	.BYTE $10,$10,$30,$30,$50,$50,$70,$70
 intruder_level_enemy_speed
-	.BYTE $20,$40,$40,$60,$60,$80,$80,$A0
+	.BYTE $20,$30,$40,$50,$60,$70,$80,$90
 intruder_level_enemy_missile_speed
-	.BYTE $02,$02,$03,$03,$04,$04,$04,$04
+	.BYTE $02,$02,$02,$02,$03,$03,$03,$03
 intruder_level_overall_delay
-	.BYTE $80,$70,$60,$50,$40,$30,$20,$10
+	.BYTE $80,$78,$70,$68,$60,$50,$40,$30
 
 intruder_init
 	STZ intruder_paused
@@ -1938,6 +1945,12 @@ intruder_input
 	CMP #$01
 	BCC intruder_input_keys
 	STZ clock_low
+	DEC intruder_fire_delay
+	LDA intruder_fire_delay
+	CMP #$FF
+	BNE intruder_input_fire_delay
+	STZ intruder_fire_delay
+intruder_input_fire_delay
 	LDA joy_buttons
 	AND intruder_joy_prev ; maybe?
 	CMP #$FF
@@ -2124,9 +2137,13 @@ intruder_reaction_next1
 	BCS intruder_reaction_next2
 	STA intruder_player_pos
 intruder_reaction_next2
+	LDA intruder_fire_delay
+	BNE intruder_reaction_next3
 	LDA intruder_button_fire
 	BEQ intruder_reaction_next3
 	STZ intruder_button_fire
+	LDA #$10 ; arbitrary wait time between firing
+	STA intruder_fire_delay
 	LDA intruder_missile_pos_y
 	BNE intruder_reaction_next3
 	LDA intruder_player_pos
@@ -2495,12 +2512,12 @@ intruder_draw_enemy_missile_search
 	STZ intruder_mystery_pos
 	LDA #$01
 	STA intruder_mystery_speed
-	LDA intruder_level
-	CLC
-	CMP #$04
-	BCC intruder_draw_mystery_next
-	LDA #$02
-	STA intruder_mystery_speed
+	;LDA intruder_level
+	;CLC
+	;CMP #$04
+	;BCC intruder_draw_mystery_next
+	;LDA #$02
+	;STA intruder_mystery_speed
 intruder_draw_mystery_next
 	CLC
 	JSR sub_random
@@ -2510,12 +2527,12 @@ intruder_draw_mystery_next
 	STA intruder_mystery_pos
 	LDA #$FF
 	STA intruder_mystery_speed
-	LDA intruder_level
-	CLC
-	CMP #$04
-	BCC intruder_draw_mystery_skip
-	LDA #$FE
-	STA intruder_mystery_speed
+	;LDA intruder_level
+	;CLC
+	;CMP #$04
+	;BCC intruder_draw_mystery_skip
+	;LDA #$FE
+	;STA intruder_mystery_speed
 intruder_draw_mystery_skip
 
 
@@ -6434,13 +6451,13 @@ intro_text
 	.BYTE "Computer"
 	.BYTE $0D
 	.BYTE "F1=Scrat"
-	.BYTE "chpad, F"
-	.BYTE "2=Monito"
-	.BYTE "r, F3=BA"
-	.BYTE "SIC, F4-"
-	.BYTE "F6=Games"
-	.BYTE ", F9=SDc"
-	.BYTE "ard",$0D
+	.BYTE "ch, F2=M"
+	.BYTE "on, F3=B"
+	.BYTE "ASIC, F4"
+	.BYTE "-F6=Game"
+	.BYTE "s, F9=SD"
+	.BYTE "card, F1"
+	.BYTE "0=Bank",$0D
 	.BYTE $00	
 
 
@@ -6459,10 +6476,10 @@ menu_exit
 	RTS
 menu_text
 	.BYTE "ESC=Brea"
-	.BYTE "k, F8=Sa"
-	.BYTE "ve/Load,"
-	.BYTE " F12=Hel"
-	.BYTE "p",$0D
+	.BYTE "k, F8=<S"
+	.BYTE "ave/Load"
+	.BYTE ">, F12=H"
+	.BYTE "elp",$0D
 	.BYTE $00
 
 
