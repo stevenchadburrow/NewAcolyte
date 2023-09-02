@@ -250,7 +250,7 @@ defense_score_value	.EQU $02FD
 clock_low		.EQU $02FE
 clock_high		.EQU $02FF
 
-sub_random		.EQU $0300 ; 18 bytes long
+sub_random		.EQU $0300 ; 4 bytes long
 
 basic_variables_low	.EQU $0312 ; 26 bytes
 basic_variables_high	.EQU $032C ; 26 bytes
@@ -328,6 +328,7 @@ intruder_color_current	.EQU $0418
 intruder_paused		.EQU $0419
 intruder_joy_prev	.EQU $041A
 intruder_fire_delay	.EQU $041B
+intruder_hit_delay	.EQU $041C
 ; unused
 intruder_enemy_visible	.EQU $0420
 
@@ -1867,12 +1868,14 @@ intruder_init
 	STZ intruder_level
 	STZ intruder_points_low
 	STZ intruder_points_high
+	STZ intruder_fire_delay
+	STZ intruder_hit_delay
 	
 intruder_init_level
 	LDA intruder_level
 	AND #%00000111
 	TAX
-	LDA #$3C ; #$2E? port change
+	LDA #$3B ; #$2E? port change
 	STA intruder_player_pos
 	STZ intruder_button_left
 	STZ intruder_button_right
@@ -1944,6 +1947,10 @@ intruder_input
 	CLC	
 	CMP #$01
 	BCC intruder_input_keys
+	LDA intruder_hit_delay
+	BEQ intruder_input_clock
+	DEC intruder_hit_delay
+intruder_input_clock
 	STZ clock_low
 	DEC intruder_fire_delay
 	LDA intruder_fire_delay
@@ -2133,7 +2140,7 @@ intruder_reaction_next1
 	CLC
 	ADC #$02
 	CLC
-	CMP #$78 ; #$42 port change
+	CMP #$75 ; #$42 port change
 	BCS intruder_reaction_next2
 	STA intruder_player_pos
 intruder_reaction_next2
@@ -2148,7 +2155,7 @@ intruder_reaction_next2
 	BNE intruder_reaction_next3
 	LDA intruder_player_pos
 	CLC
-	ADC #$03
+	ADC #$04
 	STA intruder_missile_pos_x
 	LDA #$72
 	STA intruder_missile_pos_y
@@ -2216,17 +2223,28 @@ intruder_draw_player
 	LDX #$00
 	LDY #$00
 intruder_draw_player_loop
+	LDA intruder_hit_delay
+	BEQ intruder_draw_player_normal
+	AND #%00000001
+	BEQ intruder_draw_player_normal
+	JSR sub_index
+	AND #intruder_color_missile
+	AND #%11101110
+	JSR sub_write
+	JMP intruder_draw_player_increment	
+intruder_draw_player_normal
 	JSR sub_index
 	JSR sub_write
+intruder_draw_player_increment
 	INC sub_write+1
 	INX
 	INY
-	CPY #$08
+	CPY #$0A
 	BNE intruder_draw_player_loop
 	LDY #$00
 	LDA sub_write+1
 	CLC
-	ADC #$78
+	ADC #$76
 	STA sub_write+1
 	BCC intruder_draw_player_loop
 	INC sub_write+2
@@ -2497,6 +2515,7 @@ intruder_draw_enemy_missile_timed
 	EOR #$FF
 	STA intruder_enemy_fall
 	PLA
+	CMP #$00 ; needed
 	BEQ intruder_draw_enemy_missile_search
 	JMP intruder_draw_enemy
 intruder_draw_enemy_missile_search
@@ -2538,26 +2557,30 @@ intruder_draw_mystery_skip
 
 	CLC
 	JSR sub_random
-	AND #%11111100
-	CLC
-	ROR A
-	ROR A
+;	AND #%11111100
+;	CLC
+;	ROR A
+;	ROR A
+	AND #%00111111 ; new
 	CLC
 	CMP #$30
-	BCS intruder_draw_enemy_missile_search
+	BCS intruder_draw_mystery_skip ; was 'intruder_draw_enemy_missile_search'
 	TAX
 	LDA intruder_enemy_visible,X
-	BEQ intruder_draw_enemy_missile_search	
+	BEQ intruder_draw_mystery_skip	
 	TXA
 	AND #%00000111
 	PHY ; port change down
 	TAY
 	LDA #$00
+	CPY #$00
+	BEQ intruder_draw_enemy_missile_addition_end
 intruder_draw_enemy_missile_addition
 	CLC
 	ADC #$0E
 	DEY
 	BNE intruder_draw_enemy_missile_addition
+intruder_draw_enemy_missile_addition_end
 	PLY	
 ;	CLC
 ;	ROL A
@@ -2586,15 +2609,17 @@ intruder_draw_enemy_missile_ready
 	BCC intruder_draw_enemy_missile_normal	
 	LDA intruder_player_pos
 	CLC
-	ADC #$06
+	ADC #$08
 	CLC
 	CMP intruder_enemy_miss_x
 	BCC intruder_draw_enemy_missile_normal
 	SEC
-	SBC #$06
+	SBC #$08
 	CMP intruder_enemy_miss_x
 	BCS intruder_draw_enemy_missile_normal
 	DEC intruder_player_lives ; got hit!
+	LDA #$40 ; arbitrary length of time
+	STA intruder_hit_delay
 
 	JSR intruder_draw_menu
 
@@ -3047,12 +3072,12 @@ intruder_gameover_text
 	.BYTE "Over"
 
 intruder_player_data
-	.BYTE $00,$00,$00,$0F,$F0,$00,$00,$00
-	.BYTE $00,$00,$00,$FF,$FF,$00,$00,$00
-	.BYTE $00,$00,$0F,$FF,$FF,$F0,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
+	.BYTE $00,$00,$00,$00,$0F,$F0,$00,$00,$00,$00
+	.BYTE $00,$00,$00,$00,$FF,$FF,$00,$00,$00,$00
+	.BYTE $00,$00,$0F,$FF,$FF,$FF,$FF,$F0,$00,$00
+	.BYTE $00,$00,$FF,$FF,$FF,$FF,$FF,$FF,$00,$00
+	.BYTE $00,$00,$FF,$FF,$FF,$FF,$FF,$FF,$00,$00
+	.BYTE $00,$00,$FF,$FF,$FF,$FF,$FF,$FF,$00,$00
 	;.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
 	;.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
 
@@ -5520,7 +5545,8 @@ basic_search_value_random
 	CLC
 	JSR sub_random
 	STA basic_value4_low
-	STZ basic_value4_high
+	JSR sub_random
+	STA basic_value4_high
 	JMP basic_search_value_loop
 basic_search_value_list1
 	CLC
@@ -6703,26 +6729,35 @@ setup
 
 	STZ sub_random_var
 
-	LDX #$10
-setup_random_loop
-	LDA setup_random_code,X
-	STA sub_random,X
-	DEX
-	CPX #$FF
-	BNE setup_random_loop
+;	LDX #$10
+;setup_random_loop
+;	LDA setup_random_code,X
+;	STA sub_random,X
+;	DEX
+;	CPX #$FF
+;	BNE setup_random_loop
+
+	LDA #$AD ; LDAa
+	STA sub_random+0
+	LDA #<via+$08
+	STA sub_random+1
+	LDA #>via+$08
+	STA sub_random+2
+	LDA #$60 ; RTS
+	STA sub_random+3
 
 	JSR basic_clear
 
 	RTS
 
-setup_random_code
-	.BYTE $AD
-	.WORD sub_random_var
-	.BYTE $2A,$18,$2A,$18,$6D
-	.WORD sub_random_var
-	.BYTE $18,$69,$11,$8D
-	.WORD sub_random_var
-	.BYTE $60
+;setup_random_code
+;	.BYTE $AD
+;	.WORD sub_random_var
+;	.BYTE $2A,$18,$2A,$18,$6D
+;	.WORD sub_random_var
+;	.BYTE $18,$69,$11,$8D
+;	.WORD sub_random_var
+;	.BYTE $60
 
 
 
@@ -7932,7 +7967,6 @@ mouse_isr_input
 	JSR longdelay ; 100ms minimum delay
 	JSR longdelay
 	JSR longdelay
-	JSR longdelay
 	LDA #%01000000 ; PA6 is output now
 	STA via_da
 	LDA #%00000000
@@ -8031,10 +8065,8 @@ int_init
 via_init
 	LDA #%10111111 ; PB is mostly output
 	STA via_db
-	LDA #%00000000 ; set output pins to low
-	STA via_pb
-	LDA #%00000000 ; PA is all input
-	STA via_da
+	STZ via_pb ; set output pins to low
+	STZ via_da ; PA is all input
 	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
 	STA via_pcr
 	LDA #%10000011 ; interrupts on CA1 and CA2
@@ -8061,11 +8093,15 @@ via_init
 	STZ mouse_counter
 	STZ mouse_state
 
-	LDA #%11000000 ; free run on T1 for audio
+	LDA #%11010000 ; free run on T1 for audio
 	STA via_acr
 	
 	STZ via_t1cl ; zero out T1 counter to silence
 	STZ via_t1ch
+
+	LDA #$FF
+	STA via+$08 ; T2 timer for random numbers
+	STA via+$09 
 	
 	CLI
 

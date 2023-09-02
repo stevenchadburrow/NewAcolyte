@@ -69,6 +69,7 @@
 ; /NMI is connected to V-SYNC through a bodge wire
 
 
+
 	.65C02
 
 
@@ -257,26 +258,7 @@ defense_random_constant	.EQU $035D
 defense_ammo_constant	.EQU $035E
 defense_paused		.EQU $035F
 
-line_x1			.EQU $0360
-line_y1			.EQU $0361
-line_x2			.EQU $0362
-line_y2			.EQU $0363
-line_color		.EQU $0364
-line_slope_x		.EQU $0365
-line_slope_y		.EQU $0366
-line_count_x		.EQU $0367
-line_count_y		.EQU $0368
-fill_x			.EQU $0369
-fill_y			.EQU $036A
-fill_color		.EQU $036B
-fill_corner_x		.EQU $036C
-fill_corner_y		.EQU $036D
-fill_dir_y		.EQU $036F
-fill_color_held		.EQU $0370
-fill_start_x		.EQU $036E
-fill_prev_x		.EQu $0371
-
-
+; unused
 
 command_string		.EQU $03C0 ; 64 bytes long
 
@@ -334,13 +316,53 @@ intruder_char_value	.EQU $0417
 intruder_color_current	.EQU $0418
 intruder_paused		.EQU $0419
 intruder_joy_prev	.EQU $041A
-
+intruder_fire_delay	.EQU $041B
+intruder_hit_delay	.EQU $041C
+; unused
 intruder_enemy_visible	.EQU $0420
+
+
+scroller_player_x	.EQU $0400 ; reusing memory location
+scroller_player_y	.EQU $0401
+scroller_player_lives	.EQU $0402
+scroller_player_flash	.EQU $0403
+scroller_release	.EQU $0404
+scroller_button_up	.EQU $0405
+scroller_button_down	.EQU $0406
+scroller_button_left	.EQU $0407
+scroller_button_right	.EQU $0408
+scroller_button_fire	.EQU $0409
+scroller_fire_delay	.EQU $040A
+scroller_frame		.EQU $040B
+scroller_clock		.EQU $040C
+scroller_filter		.EQU $040D
+scroller_enemy_count	.EQU $040E
+scroller_joy_prev	.EQU $040F
+scroller_bullet_x	.EQU $0410 ; 16 bytes
+scroller_bullet_y	.EQU $0420 ; 16 bytes
+scroller_enemy_x	.EQU $0430 ; 16 bytes
+scroller_enemy_y	.EQU $0440 ; 16 bytes
+scroller_enemy_dx	.EQU $0450 ; 16 bytes
+scroller_enemy_dy	.EQU $0460 ; 16 bytes
+scroller_enemy_t	.EQU $0470 ; 16 bytes
+scroller_enemy_h	.EQU $0480 ; 16 bytes
+scroller_enemy_s	.EQU $0490 ; 16 bytes
+scroller_particle_x	.EQU $04A0 ; 16 bytes
+scroller_particle_y	.EQU $04B0 ; 16 bytes
+scroller_particle_dx	.EQU $04C0 ; 16 bytes
+scroller_star_x		.EQU $04D0 ; 16 bytes
+scroller_star_y		.EQU $04E0 ; 16 bytes
+scroller_enemy_speed	.EQU $04F0
+scroller_bullet_speed	.EQU $04F1
+scroller_star_speed	.EQU $04F2
+scroller_score_low	.EQU $04F3
+scroller_score_high	.EQU $04F4
+scroller_level		.EQU $04F5
+scroller_pause_mode	.EQU $04F6
+
 
 basic_memory		.EQU $8000 ; 16KB available
 basic_memory_end	.EQU $C000 ; one past
-
-
 
 
 
@@ -350,509 +372,1627 @@ basic_memory_end	.EQU $C000 ; one past
 vector_reset
 
 
-	JSR int_init
-	JSR via_init
-	JSR joy_init
-	JSR setup
+	
+;	JSR int_init
+;	JSR via_init
+;	JSR joy_init
+;	JSR setup
 
 
 
 	;LDA #$E1 ; produces greyscale
 	;STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
 	
+	
+
+	
+scroller
 	LDA #$00 ; produces 16-colors
 	STA $FFFF
 
+;	LDA #%11010000 ; let T2 free run for random numbers
+;	STA via+$0B
+;	STZ via+$04
+;	STZ via+$05
+;	LDA #$FF
+;	STA via+$08
+;	STA via+$09 
 
-	LDA #$0C ; form feed
-	JSR printchar
-	
-	STZ printchar_x
-	STZ printchar_y	
+	JMP scroller_start
 
-	LDA #"P"
-	JSR printchar
-	LDA #"l"
-	JSR printchar
-	LDA #"e"
-	JSR printchar
-	LDA #"a"
-	JSR printchar
-	LDA #"s"
-	JSR printchar
-	LDA #"e"
-	JSR printchar
-	LDA #" "
-	JSR printchar
-	LDA #"R"
-	JSR printchar
-	LDA #"e"
-	JSR printchar
-	LDA #"s"
-	JSR printchar
-	LDA #"e"
-	JSR printchar
-	LDA #"t"
-	JSR printchar
+scroller_enemy_stats_health
+	.BYTE $08,$02,$02,$04
+scroller_enemy_stats_dir_x
+	.BYTE $00,$02,$00,$00
+scroller_enemy_stats_dir_y
+	.BYTE $00,$00,$02,$00
+scroller_enemy_stats_state
+	.BYTE $00,$00,$00,$00
 
-	LDA #" "
-	JSR printchar
-	LDA #"o"
-	JSR printchar
-	LDA #"r"
-	JSR printchar
-	LDA #" "
-	JSR printchar
-	LDA #"P"
-	JSR printchar
-	LDA #"r"
-	JSR printchar
-	LDA #"e"
-	JSR printchar
-	LDA #"s"
-	JSR printchar
-	LDA #"s"
-	JSR printchar
-	LDA #" "
-	JSR printchar
-	LDA #"E"
-	JSR printchar
-	LDA #"S"
-	JSR printchar
-	LDA #"C"
-	JSR printchar
+scroller_enemy_limit		.EQU $10 ; max of $10
 
+scroller_start
+	STZ scroller_button_up
+	STZ scroller_button_down
+	STZ scroller_button_left
+	STZ scroller_button_right
+	STZ scroller_button_fire
+	STZ scroller_release
+	LDA joy_buttons
+	STA scroller_joy_prev
+	STZ scroller_fire_delay
+	STZ scroller_frame
+	STZ scroller_clock
+	STZ scroller_filter
+	LDA #$31 ; almost start on second level
+	STA scroller_enemy_count
+	LDA #%01111111 ; #%01111111 to start
+	STA scroller_star_speed
+	LDA #%00111111 ; #%00111111 to start
+	STA scroller_enemy_speed
+	LDA #%00000011 ; #%00000011 to start
+	STA scroller_bullet_speed
+	STZ scroller_score_low
+	STZ scroller_score_high
+	LDA #$01
+	STA scroller_level
+	STZ scroller_pause_mode
 
 	LDX #$00
+scroller_clear_lists
+	STZ scroller_bullet_x,X
+	STZ scroller_bullet_y,X
+	STZ scroller_enemy_x,X
+	STZ scroller_enemy_y,X
+	STZ scroller_enemy_dx,X
+	STZ scroller_enemy_dy,X
+	STZ scroller_enemy_t,X
+	STZ scroller_enemy_h,X
+	STZ scroller_enemy_s,X
+	STZ scroller_particle_x,X
+	STZ scroller_particle_y,X
+	STZ scroller_particle_dx,X
+	JSR scroller_random
+	AND #%01111110
+	STA scroller_star_x,X
+scroller_star_random
+	JSR scroller_random
+	CLC
+	CMP #$12
+	BCC scroller_star_random
+	STA scroller_star_y,X
+	INX
+	CPX #$10
+	BNE scroller_clear_lists
+
+	LDA #$00
+	STA sub_write+1
+	LDA #$08
+	STA sub_write+2
+scroller_clear_loop
+	LDA #$00
+	JSR sub_write
+	INC sub_write+1
+	BNE scroller_clear_loop
+	INC sub_write+2
+	LDA sub_write+2
+	CLC
+	CMP #$80
+	BCC scroller_clear_loop
+
+	LDA #$FF
+	STA scroller_player_flash
+	LDA #$3C
+	STA scroller_player_x
+	LDA #$E0
+	STA scroller_player_y
+	LDA #$03
+	STA scroller_player_lives
+	
+scroller_loop
+	LDA scroller_pause_mode
+	BEQ scroller_loop_continue
+	JMP scroller_input_keys
+scroller_loop_continue
+	LDA clock_low
+	CLC
+	CMP #$01
+	BCS scroller_tick
+	JMP scroller_draw
+scroller_tick
+	STZ clock_low
+	INC scroller_frame
+
+	LDA scroller_frame
+	AND #%00000001
+	BNE scroller_enemy_appearance
+	JMP scroller_ai
+scroller_enemy_appearance
+	JSR scroller_random
+	AND scroller_star_speed ; arbitrary enemy appearance
+	BEQ scroller_enemy_beginning
+	JMP scroller_ai
+
+scroller_enemy_beginning
+	LDX #$00
+scroller_enemy_find
+	LDA scroller_enemy_x,X
+	BNE scroller_enemy_continue
+	LDA scroller_enemy_y,X
+	BNE scroller_enemy_continue
+scroller_enemy_random
+	JSR scroller_random
+	CLC
+	CMP #$10
+	BCC scroller_enemy_random
+	CLC
+	CMP #$70
+	BCS scroller_enemy_random
+	STA scroller_enemy_x,X
+	LDA #$10
+	STA scroller_enemy_y,X
+	JSR scroller_random
+	AND #%00000011 ; arbitrary max enemies
+	STA scroller_enemy_t,X
+	TAY
+	LDA scroller_enemy_stats_health,Y
+	STA scroller_enemy_h,X
+	LDA scroller_enemy_stats_dir_x,Y
+	STA scroller_enemy_dx,X
+	LDA scroller_enemy_stats_dir_y,Y
+	STA scroller_enemy_dy,X
+	STZ scroller_enemy_s,X
+	INC scroller_enemy_count
+	LDA scroller_enemy_count
+	CMP #$64 ; arbitrary enemy count to next level
+	BNE scroller_enemy_second
+	LDA scroller_enemy_speed
+	CMP #%00000011
+	BEQ scroller_ai
+	STZ scroller_enemy_count
+	INC scroller_level
+	CLC
+	ROR scroller_enemy_speed
+	CLC
+	ROR scroller_star_speed
+	DEC scroller_bullet_speed
+	JMP scroller_ai
+scroller_enemy_second
+	CMP #$32 ; arbitrary enemy_count to next level
+	BNE scroller_ai
+	LDA scroller_enemy_speed
+	CMP #%00000011
+	BEQ scroller_ai
+	INC scroller_level
+	CLC
+	ROR scroller_enemy_speed
+	CLC
+	ROR scroller_star_speed
+	JMP scroller_ai
+scroller_enemy_continue
+	INX
+	CPX #scroller_enemy_limit ; limiting to only 8 enemies on screen at once
+	BNE scroller_enemy_find
+
+scroller_ai
+	LDX #$00
+scroller_ai_loop
+	LDA scroller_enemy_t,X
+	BEQ scroller_ai_increment
+	CMP #$01
+	BEQ scroller_ai_one
+	CMP #$02
+	BEQ scroller_ai_two
+	CMP #$03
+	BEQ scroller_ai_three
+scroller_ai_increment
+	INX
+	CPX #$10
+	BNE scroller_ai_loop
+	JMP scroller_delay
+scroller_ai_one
+	INC scroller_enemy_s,X
+	LDA scroller_enemy_s,X
+	CMP #$10
+	BEQ scroller_ai_one_change1
+	CMP #$20
+	BEQ scroller_ai_one_change2
+	CMP #$30
+	BEQ scroller_ai_one_change3
+	CMP #$40
+	BEQ scroller_ai_one_change4
+	CMP #$50
+	BEQ scroller_ai_one_change5
+	CMP #$60
+	BEQ scroller_ai_one_change6
+	JMP scroller_ai_increment
+scroller_ai_one_change1
+	LDA #$01
+	STA scroller_enemy_dx,X
+	JMP scroller_ai_increment
+scroller_ai_one_change2
+	LDA #$FF
+	STA scroller_enemy_dx,X
+	JMP scroller_ai_increment
+scroller_ai_one_change3
+	LDA #$FE
+	STA scroller_enemy_dx,X
+	JMP scroller_ai_increment
+scroller_ai_one_change4
+	LDA #$FF
+	STA scroller_enemy_dx,X
+	JMP scroller_ai_increment
+scroller_ai_one_change5
+	LDA #$01
+	STA scroller_enemy_dx,X
+	JMP scroller_ai_increment
+scroller_ai_one_change6
+	LDA #$02
+	STA scroller_enemy_dx,X
+	STZ scroller_enemy_s,X
+	JMP scroller_ai_increment
+scroller_ai_two
+	JMP scroller_ai_increment
+scroller_ai_three
+	INC scroller_enemy_s,X
+	LDA scroller_enemy_s,X
+	CMP #$40 ; arbitrary speed of shooting
+	BEQ scroller_ai_three_particles
+	JMP scroller_ai_increment
+scroller_ai_three_particles
+	STZ scroller_enemy_s,X
 	LDY #$00
-line_coords
-	LDA line_data,X
-	STA line_x1
+scroller_ai_three_loop
+	LDA scroller_particle_x,Y
+	BNE scroller_ai_three_increment
+	LDA scroller_particle_y,Y
+	BNE scroller_ai_three_increment
+	LDA scroller_enemy_x,X
+	SEC
+	SBC #$01
+	STA scroller_particle_x,y
+	LDA scroller_enemy_y,X
+	CLC	
+	ADC #$07
+	STA scroller_particle_y,Y
+	JSR scroller_random
+	CLC
+	CMP #$60 ; arbitrary prob
+	BCC scroller_ai_three_left
+	CLC
+	CMP #$A0 ; arbitrary prob
+	BCC scroller_ai_three_right
+	LDA #$00
+	STA scroller_particle_dx,Y
+	JMP scroller_ai_increment
+scroller_ai_three_left
+	LDA #$FF
+	STA scroller_particle_dx,Y
+	JMP scroller_ai_increment
+scroller_ai_three_right
+	LDA #$01
+	STA scroller_particle_dx,Y
+	JMP scroller_ai_increment
+scroller_ai_three_increment
+	INY
+	CPY #$10
+	BNE scroller_ai_three_loop
+	JMP scroller_ai_increment
+	
+	
+
+
+scroller_delay
+	LDA scroller_fire_delay
+	BEQ scroller_controls0
+	DEC scroller_fire_delay
+scroller_controls0
+	LDA scroller_button_up
+	BEQ scroller_controls1
+	DEC scroller_player_y
+scroller_controls1
+	LDA scroller_button_down
+	BEQ scroller_controls2
+	INC scroller_player_y
+scroller_controls2
+	LDA scroller_button_left
+	BEQ scroller_controls3
+	DEC scroller_player_x
+scroller_controls3
+	LDA scroller_button_right
+	BEQ scroller_controls4
+	INC scroller_player_x
+scroller_controls4
+	LDA scroller_button_fire
+	BEQ scroller_controls5
+	
+	LDA scroller_fire_delay
+	BNE scroller_controls5
+	LDA #$08 ; arbitrary fire delay
+	STA scroller_fire_delay
+	LDX #$00
+scroller_bullet_seek
+	LDA scroller_bullet_x,X
+	BNE scroller_bullet_increment
+	LDA scroller_bullet_y,X
+	BNE scroller_bullet_increment
+	LDA scroller_player_x
+	CLC
+	ADC #$03
+	STA scroller_bullet_x,X
+	LDA scroller_player_y
+	STA scroller_bullet_y,X
+	JMP scroller_controls5
+scroller_bullet_increment
 	INX
-	LDA line_data,X
-	STA line_y1
+	CPX #$10
+	BNE scroller_bullet_seek
+
+scroller_controls5
+	LDA scroller_player_x
+	CLC
+	CMP #$08
+	BCS scroller_controls6
+	LDA #$08
+	STA scroller_player_x
+scroller_controls6
+	CLC
+	CMP #$70
+	BCC scroller_controls7
+	LDA #$70
+	STA scroller_player_x
+scroller_controls7
+	LDA scroller_player_y
+	CLC
+	CMP #$28
+	BCS scroller_controls8
+	LDA #$28
+	STA scroller_player_y
+scroller_controls8
+	CLC
+	CMP #$F0
+	BCC scroller_controls9
+	LDA #$F0
+	STA scroller_player_y
+scroller_controls9
+	LDA scroller_player_flash
+	BEQ scroller_controls10
+	DEC scroller_player_flash
+scroller_controls10
+
+	LDA scroller_player_flash	
+	BNE scroller_draw
+	JSR scroller_player_collision
+	CMP #$FF
+	BEQ scroller_flying
+	DEC scroller_player_lives
+	BEQ scroller_gameover_jump
+	TAX
+	LDA #$00
+	JSR scroller_draw_enemy
+	STZ scroller_enemy_x,X
+	STZ scroller_enemy_y,X
+	STZ scroller_enemy_t,X
+	JMP scroller_collision
+scroller_flying
+	LDX #$00
+scroller_flying_loop
+	JSR scroller_particle_collision
+	CMP #$FF
+	BEQ scroller_flying_increment
+	DEC scroller_player_lives
+	BEQ scroller_gameover_jump
+	LDA #$00
+	JSR scroller_draw_particle
+	STZ scroller_particle_x,X
+	STZ scroller_particle_y,X
+	JMP scroller_collision
+scroller_flying_increment
 	INX
-	LDA line_data,X
-	STA line_x2
+	CPX #$10
+	BNE scroller_flying_loop
+	JMP scroller_draw
+scroller_gameover_jump
+	JMP scroller_gameover
+scroller_collision
+	TAX
+	LDA #$00
+	JSR scroller_draw_player
+	LDA #$FF
+	STA scroller_player_flash
+	LDA #$3C
+	STA scroller_player_x
+	LDA #$E0
+	STA scroller_player_y
+
+scroller_draw
+	INC scroller_clock
+	LDA scroller_clock
+	AND #%00000011
+	CLC
+	CMP scroller_bullet_speed ; arbitrary bullet speed limiter
+	BCS scroller_bullet_beginning
+	JMP scroller_stars
+scroller_bullet_beginning
+	LDX #$00
+scroller_bullet_loop
+	LDA scroller_bullet_x,X
+	BEQ scroller_bullet_nop
+	LDA scroller_bullet_y,X
+	BEQ scroller_bullet_nop
+	LDA #$00
+	JSR scroller_draw_bullet
+	LDA scroller_bullet_y,X	
+	SEC
+	SBC #$01 ; arbitrary bullet speed
+	STA scroller_bullet_y,X
+	CLC
+	CMP #$11 ; instead of $10 ??
+	BCC scroller_bullet_zero
+	JSR scroller_bullet_collision
+	CMP #$FF
+	BEQ scroller_bullet_full
+	PHX
+	TAX
+	DEC scroller_enemy_h,X
+	BNE scroller_bullet_hit
+	LDA scroller_score_low
+	CLC
+	ADC scroller_level
+	STA scroller_score_low
+	CMP #$64 ; 100 in decimal
+	BCC scroller_bullet_unshow
+	SEC
+	SBC #$64
+	STA scroller_score_low
+	INC scroller_score_high
+	INC scroller_player_lives
+scroller_bullet_unshow
+	LDA #$00
+	JSR scroller_draw_enemy
+	STZ scroller_enemy_x,X
+	STZ scroller_enemy_y,X
+	STZ scroller_enemy_t,X
+	JMP scroller_bullet_hit
+scroller_bullet_full
+
+	JSR scroller_tiny_collision
+	CMP #$FF
+	BNE scroller_bullet_zero
+
+	LDA #$FF
+	JSR scroller_draw_bullet
+	JMP scroller_bullet_next
+scroller_bullet_hit
+	PLX
+scroller_bullet_zero
+	STZ scroller_bullet_x,X
+	STZ scroller_bullet_y,X
+scroller_bullet_next
 	INX
-	LDA line_data,X
-	STA line_y2
+	CPX #$10
+	BNE scroller_bullet_loop
+	JMP scroller_stars
+scroller_bullet_nop
+	LDY #$80 ; arbitrary delay
+scroller_bullet_nop_loop ; simulates drawing delay
+	NOP
+	NOP
+	NOP
+	NOP	
+	DEY
+	BNE scroller_bullet_nop_loop
+	JMP scroller_bullet_next
+
+scroller_stars
+	LDA scroller_clock
+	AND scroller_star_speed ; arbitrary star speed
+	BEQ scroller_star_start
+	JMP scroller_enemies
+scroller_star_start
+	LDX #$00
+scroller_star_move
+	LDA #$00
+	JSR scroller_draw_star
+	LDA scroller_star_y,X
+	CLC	
+	ADC #$01 ; arbitrary star speed
+	STA scroller_star_y,X
+	CLC
+	CMP #$F8
+	BCC scroller_star_show
+scroller_star_destroy
+	JSR scroller_random
+	AND #%01111110
+	STA scroller_star_x,X
+	JSR scroller_random
+	AND #%00000011
+	CLC
+	ADC #$12
+	STA scroller_star_y,X
+scroller_star_show
+	LDA #$FF
+	JSR scroller_draw_star
 	INX
-	LDA line_data,X
-	STA line_color
+	CPX #$10
+	BNE scroller_star_move
+
+
+scroller_enemies
+	LDA scroller_clock
+	AND scroller_enemy_speed ; arbitrary enemy speed limiter
+	BEQ scroller_enemy_start
+	JMP scroller_particles
+scroller_enemy_start
+	LDX #$00
+scroller_enemy_move
+	LDA scroller_enemy_x,X
+	BEQ scroller_enemy_nop
+	LDA scroller_enemy_y,X
+	BEQ scroller_enemy_nop
+	LDA #$00
+	JSR scroller_draw_enemy
+	LDA scroller_enemy_x,X
+	CLC	
+	ADC scroller_enemy_dx,X
+	STA scroller_enemy_x,X
+	CLC
+	CMP #$04
+	BCC scroller_enemy_destroy
+	CLC
+	CMP #$7C
+	BCS scroller_enemy_destroy
+	LDA scroller_enemy_y,X
+	CLC	
+	ADC scroller_enemy_dy,X
+	STA scroller_enemy_y,X
+scroller_enemy_fall
+	LDA scroller_enemy_y,X
+	CLC	
+	ADC #$01 ; arbitrary enemy speed
+	STA scroller_enemy_y,X
+	CLC
+	CMP #$F0
+	BCC scroller_enemy_show
+scroller_enemy_destroy
+	STZ scroller_enemy_x,X
+	STZ scroller_enemy_y,X
+	STZ scroller_enemy_t,X
+	STZ scroller_enemy_h,X
+	JMP scroller_enemy_skip
+scroller_enemy_show
+	LDA #$FF
+	JSR scroller_draw_enemy
+scroller_enemy_skip
 	INX
-	JSR line
+	CPX #$10
+	BNE scroller_enemy_move
+	JMP scroller_particles
+scroller_enemy_nop
+	CLC	
+	CPX #scroller_enemy_limit ; only nop the first enemies
+	BCC scroller_enemy_skip
+	LDY #$FF ; arbitrary delay
+scroller_enemy_nop_loop ; simulates drawing delay
+	NOP
+	NOP
+	NOP
+	NOP	
+	DEY
+	BNE scroller_enemy_nop_loop
+	JMP scroller_enemy_skip
+
+scroller_particles
+	LDA scroller_clock
+	AND scroller_enemy_speed ; arbitrary particle speed limiter
+	BEQ scroller_particle_start
+	JMP scroller_sprites
+scroller_particle_start
+	LDX #$00
+scroller_particle_move
+	LDA scroller_particle_x,X
+	BEQ scroller_particle_nop
+	LDA scroller_particle_y,X
+	BEQ scroller_particle_nop
+	LDA #$00
+	JSR scroller_draw_particle
+	LDA scroller_particle_x,X
+	CLC	
+	ADC scroller_particle_dx,X
+	STA scroller_particle_x,X
+	CLC	
+	CMP #$04
+	BCC scroller_particle_clear
+	CLC
+	CMP #$7C
+	BCS scroller_particle_clear
+	LDA scroller_particle_y,X
+	INC A
+	CLC	
+	ADC #$02 ; constant
+	STA scroller_particle_y,X
+	CLC
+	CMP #$12
+	BCC scroller_particle_clear
+	CLC
+	CMP #$F8
+	BCS scroller_particle_clear
+	LDA #$FF
+	JSR scroller_draw_particle
+scroller_particle_skip
+	INX
+	CPX #$10
+	BNE scroller_particle_move
+	JMP scroller_sprites
+scroller_particle_clear
+	STZ scroller_particle_x,X
+	STZ scroller_particle_y,X
+	JMP scroller_particle_skip
+scroller_particle_nop
+	LDY #$80 ; arbitrary delay
+scroller_particle_nop_loop ; simulates drawing delay
+	NOP
+	NOP
+	NOP
+	NOP	
+	DEY
+	BNE scroller_particle_nop_loop
+	JMP scroller_particle_skip
+	
+
+scroller_sprites
+
+	LDA #$FF
+	JSR scroller_draw_player
+
+	LDA scroller_frame
+	AND #%00001111
+	BNE scroller_input
+	JSR scroller_draw_menu
+
+scroller_input
+	LDA joy_buttons
+	CMP scroller_joy_prev
+	BEQ scroller_input_keys
+	
+	JSR scroller_joy
+
+scroller_input_keys
+	LDX key_read
+	CPX key_write
+	BEQ scroller_input_exit
+	JSR scroller_random
+	LDA key_array,X
+	INC key_read
+	BPL scroller_input_positive
+	STZ key_read
+scroller_input_positive
+	CMP #$F0
+	BEQ scroller_input_release
+	CMP #$E0
+	BEQ scroller_input_exit
+	CMP #ps2_escape
+	BEQ scroller_input_pause
+	CMP #ps2_arrow_up
+	BEQ scroller_input_up
+	CMP #ps2_arrow_down
+	BEQ scroller_input_down
+	CMP #ps2_arrow_left
+	BEQ scroller_input_left
+	CMP #ps2_arrow_right
+	BEQ scroller_input_right
+	CMP #ps2_space
+	BEQ scroller_input_fire
+scroller_input_exit
+	JMP scroller_loop
+scroller_input_pause
+	JSR scroller_pause
+	JMP scroller_loop
+scroller_input_release
+	LDA #$FF
+	STA scroller_release
+	JMP scroller_loop
+scroller_input_up
+	LDA scroller_release
+	EOR #$FF
+	STA scroller_button_up
+	STZ scroller_release
+	JMP scroller_loop
+scroller_input_down
+	LDA scroller_release
+	EOR #$FF
+	STA scroller_button_down
+	STZ scroller_release
+	JMP scroller_loop
+scroller_input_left
+	LDA scroller_release
+	EOR #$FF
+	STA scroller_button_left
+	STZ scroller_release
+	JMP scroller_loop
+scroller_input_right
+	LDA scroller_release
+	EOR #$FF
+	STA scroller_button_right
+	STZ scroller_release
+	JMP scroller_loop
+scroller_input_fire
+	LDA scroller_release
+	EOR #$FF
+	STA scroller_button_fire
+	STZ scroller_release
+	JMP scroller_loop
+
+scroller_joy
+	LDA joy_buttons
+	AND #%00000001
+	BNE scroller_joy_next1
+	LDA #$FF
+	STA scroller_button_up
+	JMP scroller_joy_next2
+scroller_joy_next1
+	LDA scroller_joy_prev
+	AND #%00000001
+	BNE scroller_joy_next2
+	STZ scroller_button_up
+scroller_joy_next2
+	LDA joy_buttons
+	AND #%00000010
+	BNE scroller_joy_next3
+	LDA #$FF
+	STA scroller_button_down
+	JMP scroller_joy_next4
+scroller_joy_next3
+	LDA scroller_joy_prev
+	AND #%00000010
+	BNE scroller_joy_next4
+	STZ scroller_button_down
+scroller_joy_next4
+	LDA joy_buttons
+	AND #%00000100
+	BNE scroller_joy_next5
+	LDA #$FF
+	STA scroller_button_left
+	JMP scroller_joy_next6
+scroller_joy_next5
+	LDA scroller_joy_prev
+	AND #%00000100
+	BNE scroller_joy_next6
+	STZ scroller_button_left
+scroller_joy_next6
+	LDA joy_buttons
+	AND #%00001000
+	BNE scroller_joy_next7
+	LDA #$FF
+	STA scroller_button_right
+	JMP scroller_joy_next8
+scroller_joy_next7
+	LDA scroller_joy_prev
+	AND #%00001000
+	BNE scroller_joy_next8
+	STZ scroller_button_right
+scroller_joy_next8
+	LDA joy_buttons
+	AND #%00110000
+	CMP #%00110000
+	BEQ scroller_joy_next9
+	LDA #$FF
+	STA scroller_button_fire
+	JMP scroller_joy_next10
+scroller_joy_next9
+	LDA scroller_joy_prev
+	AND #%00110000
+	CMP #%00110000
+	BEQ scroller_joy_next10
+	STZ scroller_button_fire
+scroller_joy_next10
+	LDA joy_buttons
+	STA scroller_joy_prev
+	RTS
+
+
+
+scroller_player_collision ; return A as $FF for none, otherwise enemy id
+	PHY
+	LDY #$00
+scroller_player_collision_loop
+	LDA scroller_enemy_x,Y
+	BEQ scroller_player_collision_increment
+	CLC
+	ADC #$01
+	CLC	
+	CMP scroller_player_x
+	BCC scroller_player_collision_increment
+	SEC
+	SBC #$0B
+	CLC
+	CMP scroller_player_x
+	BCS scroller_player_collision_increment
+	LDA scroller_enemy_y,Y
+	BEQ scroller_player_collision_increment
+	SEC
+	SBC #$08
+	CLC	
+	CMP scroller_player_y
+	BCS scroller_player_collision_increment 
+	CLC
+	ADC #$10
+	CLC
+	CMP scroller_player_y
+	BCC scroller_player_collision_increment
+	TYA
+	JMP scroller_player_collision_exit
+scroller_player_collision_increment
+	INY
+	CPY #$10
+	BNE scroller_player_collision_loop
+	LDA #$FF ; no collision
+scroller_player_collision_exit
+	PLY
+	RTS
+
+
+scroller_bullet_collision ; X already set, return A as $FF for none, otherwise enemy id
+	PHX
+	PHY
+	LDY #$00
+scroller_bullet_collision_loop
+	LDA scroller_enemy_x,Y
+	BEQ scroller_bullet_collision_increment
+	CLC
+	ADC #$01
+	CLC	
+	CMP scroller_bullet_x,X
+	BCC scroller_bullet_collision_increment
+	SEC
+	SBC #$05
+	CLC
+	CMP scroller_bullet_x,X
+	BCS scroller_bullet_collision_increment
+	LDA scroller_enemy_y,Y
+	BEQ scroller_bullet_collision_increment
+	CLC	
+	CMP scroller_bullet_y,X
+	BCS scroller_bullet_collision_increment 
+	CLC
+	ADC #$08
+	CLC
+	CMP scroller_bullet_y,X
+	BCC scroller_bullet_collision_increment
+	TYA
+	JMP scroller_bullet_collision_exit
+scroller_bullet_collision_increment
+	INY
+	CPY #$10
+	BNE scroller_bullet_collision_loop
+	LDA #$FF ; no collision
+scroller_bullet_collision_exit
+	PLY
+	PLX
+	RTS
+
+scroller_particle_collision ; X already set, return A as $FF for none, otherwise hit player
+	PHX
+scroller_particle_collision_loop
+	LDA scroller_player_x
+	BEQ scroller_particle_collision_increment
+	CLC
+	ADC #$05
+	CLC	
+	CMP scroller_particle_x,X
+	BCC scroller_particle_collision_increment
+	SEC
+	SBC #$06
+	CLC
+	CMP scroller_particle_x,X
+	BCS scroller_particle_collision_increment
+	LDA scroller_player_y
+	BEQ scroller_bullet_collision_increment
+	CLC	
+	CMP scroller_particle_y,X
+	BCS scroller_particle_collision_increment 
+	CLC
+	ADC #$08
+	CLC
+	CMP scroller_particle_y,X
+	BCC scroller_particle_collision_increment
+	LDA #$00 ; hit
+	JMP scroller_particle_collision_exit
+scroller_particle_collision_increment
+	LDA #$FF ; miss
+scroller_particle_collision_exit
+	PLX
+	RTS
+
+scroller_tiny_collision ; X already set, return A as $FF for none, otherwise hit particle
+	PHY
+	LDY #$00
+scroller_tiny_collision_loop
+	LDA scroller_particle_x,Y
+	BEQ scroller_tiny_collision_skip
+	LDA scroller_particle_y,Y
+	BEQ scroller_tiny_collision_skip
+	LDA scroller_particle_x,Y
+	CLC
+	ADC #$02
+	CMP scroller_bullet_x,X
+	BCC scroller_tiny_collision_skip
+	SEC
+	SBC #$04
+	CMP scroller_bullet_x,X
+	BCS scroller_tiny_collision_skip
+	LDA scroller_particle_y,Y
+	CLC
+	ADC #$02
+	CMP scroller_bullet_y,X
+	BCC scroller_tiny_collision_skip
+	SEC
+	SBC #$04
+	CMP scroller_bullet_y,X
+	BCS scroller_tiny_collision_skip
+	PHX
+	TYA
+	TAX
+	LDA #$00
+	JSR scroller_draw_particle
+	TXA
+	TAY
+	PLX
+	LDA #$00	
+	STA scroller_particle_x,Y
+	STA scroller_particle_y,Y
+	TYA
+	JMP scroller_tiny_collision_exit
+scroller_tiny_collision_skip
+	INY
+	CPY #$10
+	BNE scroller_tiny_collision_loop
+	LDA #$FF
+scroller_tiny_collision_exit
+	PLY
+	RTS
+
+scroller_pause
+	LDA scroller_pause_mode
+	BNE scroller_pause_unset
+	LDA scroller_release
+	BEQ scroller_pause_exit
+	JSR scroller_draw_pause
+	LDA #$FF
+	STA scroller_pause_mode
+	STZ scroller_release
+	RTS
+scroller_pause_unset
+	LDA scroller_release
+	BEQ scroller_pause_exit
+	JSR scroller_clear_pause
+	STZ scroller_pause_mode
+	STZ scroller_button_up
+	STZ scroller_button_down
+	STZ scroller_button_left
+	STZ scroller_button_right
+	STZ scroller_button_fire
+scroller_pause_exit
+	STZ scroller_release
+	RTS
+
+scroller_gameover
+	JSR scroller_draw_gameover
+scroller_gameover_loop
+	LDA joy_buttons
+	CMP #$FF
+	BNE scroller_gameover_loop
+	JSR inputchar
+	CMP #$00 ; none
+	BEQ scroller_gameover_reset
+	JMP scroller_gameover_loop
+scroller_gameover_reset
+	LDA joy_buttons
+	AND #%00110000
+	CMP #%00110000
+	BNE scroller_gameover_restart
+	JSR inputchar
+	CMP #$20 ; space
+	BEQ scroller_gameover_restart
+	JMP scroller_gameover_reset
+scroller_gameover_quit
+	; put bank change here
+scroller_gameover_restart
+	JMP scroller
+
+	
+scroller_draw_player ; A already set
+	PHX
+	PHA
+	LDA scroller_player_flash
+	BEQ scroller_draw_player_filter
+	LDA scroller_frame
+	AND #%00001000
+	BEQ scroller_draw_player_zero
+	LDA #%11101110
+	JMP scroller_draw_player_filter
+scroller_draw_player_zero
+	LDA #%00010001
+scroller_draw_player_filter
+	EOR #$FF
+	STA scroller_filter
+	PLA
+	PHA
+	AND scroller_filter
+	STA scroller_filter
+
+	LDA #<scroller_player_data
+	STA sub_index+1
+	LDA #>scroller_player_data
+	STA sub_index+2
+	LDA scroller_player_y
+	AND #%00000001
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC scroller_player_x
+	STA sub_write+1
+	LDA scroller_player_y
+	CLC
+	ROR A
+	STA sub_write+2
+	LDX #$00
+	LDY #$00
+scroller_draw_player_loop
+	JSR sub_index
+	AND scroller_filter
+	JSR sub_write	
+	INC sub_write+1
+	INX
+	INY
+	CPY #$08
+	BNE scroller_draw_player_loop
+	LDY #$00
+	LDA sub_write+1
+	CLC
+	ADC #$78
+	STA sub_write+1
+	BCC scroller_draw_player_check
+	INC sub_write+2
+scroller_draw_player_check
+	CPX #$40
+	BNE scroller_draw_player_loop
+
+	LDA #<scroller_burner_data
+	STA sub_index+1
+	LDA #>scroller_burner_data
+	STA sub_index+2
+	LDA scroller_player_y
+	CLC
+	ADC #$08
+	AND #%00000001
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC scroller_player_x
+	STA sub_write+1
+	LDA scroller_player_y
+	CLC
+	ADC #$08
+	CLC
+	ROR A
+	STA sub_write+2
+	LDA scroller_frame
+	AND #%00001000
+	CLC
+	ROL A
+	ROL A
+	TAX
+	LDY #$00
+scroller_draw_player_burner_loop
+	JSR sub_index
+	AND scroller_filter
+	JSR sub_write	
+	INC sub_write+1
+	INX
+	INY
+	CPY #$08
+	BNE scroller_draw_player_burner_loop
+	LDY #$00
+	LDA sub_write+1
+	CLC
+	ADC #$78
+	STA sub_write+1
+	BCC scroller_draw_player_burner_check
+	INC sub_write+2
+scroller_draw_player_burner_check
+	TXA
+	AND #%00011111
+	BNE scroller_draw_player_burner_loop
+	PLA
+	PLX
+	RTS
+
+scroller_draw_bullet ; A and X already set
+	PHX
+	PHA
+	STA scroller_filter
+	LDA #<scroller_bullet_data
+	STA sub_index+1
+	LDA #>scroller_bullet_data
+	STA sub_index+2
+	LDA scroller_bullet_y,X
+	AND #%00000001
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC scroller_bullet_x,X
+	STA sub_write+1
+	LDA scroller_bullet_y,X
+	CLC
+	ROR A
+	STA sub_write+2
+	LDX #$00
+	LDY #$00
+scroller_draw_bullet_loop
+	JSR sub_index
+	AND scroller_filter
+	JSR sub_write	
+	INC sub_write+1
+	INX
+	INY
+	CPY #$02
+	BNE scroller_draw_bullet_loop
+	LDY #$00
+	LDA sub_write+1
+	CLC
+	ADC #$7E
+	STA sub_write+1
+	BCC scroller_draw_bullet_check
+	INC sub_write+2
+scroller_draw_bullet_check
+	CPX #$08
+	BNE scroller_draw_bullet_loop
+	PLA
+	PLX
+	RTS
+
+scroller_draw_star ; A and X already set
+	PHA
+	STA scroller_filter
+	LDA scroller_star_y,X
+	AND #%00000001
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC scroller_star_x,X
+	STA sub_write+1
+	LDA scroller_star_y,X
+	CLC
+	ROR A
+	STA sub_write+2
+	LDA scroller_filter
+	JSR sub_write
+	PLA
+	RTS
+
+scroller_draw_enemy ; A and X already set
+	PHX
+	PHA
+	STA scroller_filter
+	LDA scroller_enemy_t,X
+	BEQ scroller_draw_enemy_type1
+	CMP #$01
+	BEQ scroller_draw_enemy_type2
+	CMP #$02
+	BEQ scroller_draw_enemy_type3
+	CMP #$03
+	BEQ scroller_draw_enemy_type4
+scroller_draw_enemy_type1
+	LDA #<scroller_enemy_data1
+	STA sub_index+1
+	LDA #>scroller_enemy_data1
+	STA sub_index+2
+	JMP scroller_draw_enemy_ready
+scroller_draw_enemy_type2
+	LDA #<scroller_enemy_data2
+	STA sub_index+1
+	LDA #>scroller_enemy_data2
+	STA sub_index+2
+	JMP scroller_draw_enemy_ready
+scroller_draw_enemy_type3
+	LDA #<scroller_enemy_data3
+	STA sub_index+1
+	LDA #>scroller_enemy_data3
+	STA sub_index+2
+	JMP scroller_draw_enemy_ready
+scroller_draw_enemy_type4
+	LDA #<scroller_enemy_data4
+	STA sub_index+1
+	LDA #>scroller_enemy_data4
+	STA sub_index+2
+	JMP scroller_draw_enemy_ready
+	
+scroller_draw_enemy_ready
+	LDA scroller_enemy_y,X
+	AND #%00000001
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC scroller_enemy_x,X
+	SEC
+	SBC #$02
+	STA sub_write+1
+	LDA scroller_enemy_y,X
+	CLC
+	ROR A
+	STA sub_write+2
+	LDX #$00
+	LDY #$00
+scroller_draw_enemy_loop
+	JSR sub_index
+	AND scroller_filter
+	JSR sub_write	
+	INC sub_write+1
+	INX
+	INY
+	CPY #$04
+	BNE scroller_draw_enemy_loop
+	LDY #$00
+	LDA sub_write+1
+	CLC
+	ADC #$7C
+	STA sub_write+1
+	BCC scroller_draw_enemy_check
+	INC sub_write+2
+scroller_draw_enemy_check
+	CPX #$20
+	BNE scroller_draw_enemy_loop
+	PLA
+	PLX
+	RTS
+
+scroller_draw_particle ; A and X already set
+	PHX
+	PHA
+	STA scroller_filter
+	LDA #<scroller_particle_data
+	STA sub_index+1
+	LDA #>scroller_particle_data
+	STA sub_index+2
+	LDA scroller_particle_y,X
+	AND #%00000001
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC scroller_particle_x,X
+	STA sub_write+1
+	LDA scroller_particle_y,X
+	CLC
+	ROR A
+	STA sub_write+2
+	LDX #$00
+	LDY #$00
+scroller_draw_particle_loop
+	JSR sub_index
+	AND scroller_filter
+	JSR sub_write	
+	INC sub_write+1
+	INX
+	INY
+	CPY #$02
+	BNE scroller_draw_particle_loop
+	LDY #$00
+	LDA sub_write+1
+	CLC
+	ADC #$7E
+	STA sub_write+1
+	BCC scroller_draw_particle_check
+	INC sub_write+2
+scroller_draw_particle_check
+	CPX #$08
+	BNE scroller_draw_particle_loop
+	PLA
+	PLX
+	RTS
+
+
+
+
+scroller_player_data
+	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
+	.BYTE $00,$00,$00,$0E,$E0,$00,$00,$00
+	.BYTE $00,$00,$00,$EF,$FE,$00,$00,$00
+	.BYTE $00,$00,$00,$EF,$FE,$00,$00,$00
+	.BYTE $00,$00,$0E,$FF,$FF,$E0,$00,$00
+	.BYTE $00,$0E,$FF,$FF,$FF,$FF,$E0,$00
+	.BYTE $00,$EF,$FF,$FF,$FF,$FF,$FE,$00
+	.BYTE $00,$0E,$FF,$FF,$FF,$FF,$E0,$00
+
+scroller_burner_data
+	.BYTE $00,$08,$99,$99,$99,$99,$80,$00
+	.BYTE $00,$00,$89,$99,$99,$98,$00,$00
+	.BYTE $00,$00,$08,$88,$88,$80,$00,$00
+	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
+
+	.BYTE $00,$00,$08,$99,$99,$80,$00,$00
+	.BYTE $00,$00,$08,$88,$88,$80,$00,$00
+	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
+	.BYTE $00,$00,$00,$00,$00,$00,$00,$00
+
+scroller_bullet_data
+	.BYTE $0E,$E0
+	.BYTE $0F,$F0
+	.BYTE $EF,$FE
+	.BYTE $89,$98
+
+scroller_particle_data
+	.BYTE $1C,$C1
+	.BYTE $CD,$DC
+	.BYTE $CD,$DC
+	.BYTE $1C,$C1
+
+scroller_enemy_data1
+	.BYTE $05,$00,$00,$50
+	.BYTE $45,$55,$55,$54
+	.BYTE $45,$15,$51,$54
+	.BYTE $45,$15,$51,$54
+	.BYTE $45,$55,$55,$54
+	.BYTE $00,$44,$44,$00
+	.BYTE $E0,$10,$01,$0E
+	.BYTE $EE,$EE,$EE,$EE
+
+scroller_enemy_data2
+	.BYTE $EE,$99,$99,$EE
+	.BYTE $08,$99,$99,$90
+	.BYTE $EE,$99,$99,$EE
+	.BYTE $08,$19,$91,$80
+	.BYTE $EE,$19,$91,$EE
+	.BYTE $08,$99,$99,$80
+	.BYTE $EE,$99,$99,$EE
+	.BYTE $08,$99,$99,$80
+
+scroller_enemy_data3
+	.BYTE $03,$77,$77,$30
+	.BYTE $37,$17,$71,$73
+	.BYTE $37,$17,$71,$73
+	.BYTE $37,$77,$77,$73
+	.BYTE $33,$77,$77,$33
+	.BYTE $03,$37,$73,$30
+	.BYTE $00,$E3,$3E,$00
+	.BYTE $00,$0E,$E0,$00
+
+
+scroller_enemy_data4
+	.BYTE $0C,$CC,$CC,$C0
+	.BYTE $CD,$DD,$DD,$DC
+	.BYTE $CD,$1D,$D1,$DC
+	.BYTE $CD,$1D,$D1,$DC
+	.BYTE $CD,$DD,$DD,$DC
+	.BYTE $0D,$DD,$DD,$D0
+	.BYTE $00,$EE,$EE,$00
+	.BYTE $00,$EE,$EE,$00
+
+scroller_draw_pause
+	LDA #$0D
+	STA printchar_x
+	LDA #$10
+	STA printchar_y	
+	LDY #$00
+scroller_draw_pause_loop
+	LDA scroller_pause_text,Y
+	JSR colorchar
+	INC printchar_x
 	INY
 	CPY #$06
-	BNE line_coords
+	BNE scroller_draw_pause_loop
+	RTS
 
-	
-	LDX #$00
+scroller_clear_pause
+	LDA #$0D
+	STA printchar_x
+	LDA #$10
+	STA printchar_y	
 	LDY #$00
-fill_coords
-	LDA fill_data,X
-	STA fill_x
-	INX
-	LDA fill_data,X
-	STA fill_y
-	INX
-	LDA fill_data,X
-	STA fill_color
-	INX
-	JSR fill
+scroller_clear_pause_loop
+	LDA #" "
+	JSR colorchar
+	INC printchar_x
 	INY
-	CPY #$05
-	BNE fill_coords
-
-
-	LDA #"!"
-	JSR printchar
-
-
-inf
-	JSR inputchar
-	CMP #$1B ; escape
-	BNE inf
-	JMP bank_switch
-
-
-
-line_data
-	.BYTE $20,$20, $30,$40, $AA
-	.BYTE $30,$40, $28,$50, $AA
-	.BYTE $28,$50, $20,$20, $AA
-	.BYTE $50,$60, $30,$80, $66
-	.BYTE $30,$80, $90,$70, $66
-	.BYTE $90,$70, $50,$60, $66
-
-fill_data
-	.BYTE $10,$30, $FF
-	.BYTE $90,$30, $FF
-	.BYTE $A0,$68, $FF
-	.BYTE $50,$64, $AA
-	.BYTE $26,$32, $66
-
-
-line
-	PHA
-	STZ line_slope_x
-	STZ line_slope_y
-	LDA line_x1
-	CLC
-	CMP line_x2
-	BEQ line_vertical
-	BCS line_side
-	LDA line_x2
-	SEC
-	SBC line_x1
-	STA line_slope_x
-	JMP line_vertical
-line_side
-	SEC
-	SBC line_x2
-	STA line_slope_x
-line_vertical
-	LDA line_y1
-	CLC
-	CMP line_y2
-	BEQ line_draw
-	BCS line_up
-	LDA line_y2
-	SEC
-	SBC line_y1
-	STA line_slope_y
-	JMP line_draw
-line_up
-	SEC
-	SBC line_y2
-	STA line_slope_y
-line_draw
-	JSR line_pixel
-	STZ line_count_x
-	STZ line_count_y
-line_loop
-	INC line_count_x
-	LDA line_count_x
-	CLC
-	CMP line_slope_y
-	BCC line_next
-	STZ line_count_x
-	LDA line_x1
-	CLC
-	CMP line_x2
-	BEQ line_next
-	BCC line_back
-	DEC line_x1
-	JMP line_next
-line_back
-	INC line_x1
-line_next
-	INC line_count_y
-	LDA line_count_y
-	CLC
-	CMP line_slope_x
-	BCC line_last
-	STZ line_count_y
-	LDA line_y1
-	CLC
-	CMP line_y2
-	BEQ line_last
-	BCC line_fore
-	DEC line_y1
-	JMP line_last
-line_fore
-	INC line_y1
-line_last
-	JSR line_pixel
-	LDA line_x1
-	CMP line_x2
-	BNE line_loop
-	LDA line_y1
-	CMP line_y2
-	BNE line_loop
-	PLA
-	RTS
-line_pixel
-	LDA line_color
-	PHA
-	AND #%11110000
-	STA line_color
-	LDA line_x1
-	CLC
-	ROR A
-	STA sub_write+1
-	STA sub_read+1
-	BCC line_half
-	PLA
-	PHA
-	AND #%00001111
-	STA line_color
-line_half
-	LDA line_y1
-	CLC
-	ROR A
-	STA sub_write+2
-	STA sub_read+2
-	BCC line_dot
-	LDA sub_write+1
-	CLC
-	ADC #$80
-	STA sub_write+1
-	STA sub_read+1
-line_dot
-	LDA sub_write+2
-	CLC
-	CMP #$08
-	BCC line_exit
-	CLC
-	CMP #$80
-	BCS line_exit 
-	JSR sub_read
-	ORA line_color
-	JSR sub_write
-line_exit
-	PLA
-	STA line_color
+	CPY #$06
+	BNE scroller_clear_pause_loop
 	RTS
 
+scroller_draw_gameover
+	LDA #$0D
+	STA printchar_x
+	LDA #$10
+	STA printchar_y	
+	LDY #$00
+scroller_draw_gameover_loop
+	LDA scroller_gameover_text,Y
+	JSR colorchar
+	INC printchar_x
+	INY
+	CPY #$09
+	BNE scroller_draw_gameover_loop
+	RTS
 
+scroller_pause_text
+	.BYTE "Paused"
+scroller_gameover_text
+	.BYTE "Game "
+	.BYTE "Over"
 
-fill
-	PHA
-	LDA fill_x
-	STA fill_corner_x
-	LDA fill_y
-	STA fill_corner_y
-	LDA #$FF
-	STA fill_dir_y
-	JSR fill_half
-	LDA fill_corner_x
-	STA fill_x
-	LDA fill_corner_y
-	INC A
-	STA fill_y
-	LDA #$01
-	STA fill_dir_y
-	JSR fill_half
-	PLA
-	RTS
-fill_half
-	LDA fill_color
-	STA fill_color_held
-fill_seek	
-	JSR fill_subs
-	CMP #$00
-	BEQ fill_exit
-	JSR sub_read
-	AND fill_color
-	BEQ fill_decrement
-	JMP fill_increment
-fill_decrement
-	DEC fill_x
-	BNE fill_seek
-fill_increment
-	INC fill_x
-	LDA fill_x
-	STA fill_start_x
-fill_edge
-	JSR fill_subs
-	CMP #$00
-	BEQ fill_exit
-	JSR sub_read
-	AND fill_color
-	BNE fill_row
-	JSR sub_read
-	ORA fill_color
-	JSR sub_write
-	INC fill_x
-	LDA fill_x
-	BEQ fill_row
-	CMP #$FF
-	BEQ fill_row
-	JMP fill_edge
-fill_row
-	LDA fill_x
-	STA fill_prev_x
-	LDA fill_start_x
-	STA fill_x
-	LDA fill_y
-	CLC
-	ADC fill_dir_y
-	STA fill_y
-fill_check
-	JSR fill_subs                                                         
-	CMP #$00
-	BEQ fill_exit
-	JSR sub_read
-	AND fill_color
-	BEQ fill_seek
-	
-	INC fill_x
-	LDA fill_x
-	CLC
-	CMP fill_prev_x
-	BCC fill_check
-fill_exit
-	LDA fill_color_held
-	STA fill_color
-	RTS
-fill_subs ; original fill_color already on stack
-	LDA fill_color_held
-	AND #%11110000
-	STA fill_color
-	LDA fill_x
-	CLC
-	ROR A
-	STA sub_write+1
-	STA sub_read+1
-	BCC fill_next
-	LDA fill_color_held	
-	AND #%00001111
-	STA fill_color
-fill_next
-	LDA fill_y
-	CLC
-	ROR A
-	STA sub_write+2
-	STA sub_read+2
-	BCC fill_dot
-	LDA sub_write+1
-	CLC
-	ADC #$80
-	STA sub_write+1
-	STA sub_read+1
-fill_dot
-	LDA sub_write+2
-	CLC
-	CMP #$08
-	BCC fill_error
-	CLC
-	CMP #$80
-	BCS fill_error
-	LDA #$FF
-	RTS
-fill_error
+scroller_draw_menu
+	LDA #$03
+	STA printchar_x
 	LDA #$00
+	STA printchar_y
+	LDA scroller_score_low ; needs colornum to not display hundreds digit if zero!!!
+	JSR colornum
+	LDA #$01
+	STA printchar_x
+	LDA #$00
+	STA printchar_y
+	LDA scroller_score_high
+	JSR colornum
+	LDA #$3C
+	STA printchar_x
+	LDA #$00
+	STA printchar_y
+	LDA scroller_player_lives
+	JSR colornum
+	RTS	
+
+
+scroller_random
+	CLC
+	JSR sub_random
+	;LDA via+$08 ; T2 timer for random numbers
 	RTS
 
 
 
 
+colorchar ; 32-column characters in 16-color mode
+	PHA
+	PHX
+	PHY
+	PHA
+	LDA printchar_x
+	CLC
+	ROL A
+	CLC
+	ROL A
+	STA printchar_write+1
+	LDA printchar_y
+	CLC
+	ROL A
+	CLC
+	ROL A
+	CLC
+	ADC #$08
+	STA printchar_write+2
+	PLA
+	SEC
+	SBC #$20
+	TAX
+	LDA #<key_bitmap
+	STA printchar_read+1
+	LDA #>key_bitmap
+	STA printchar_read+2
+colorchar_lookup
+	CPX #$00
+	BEQ colorchar_found
+	DEX
+	LDA printchar_read+1
+	CLC
+	ADC #$10
+	STA printchar_read+1
+	BNE colorchar_lookup
+	INC printchar_read+2
+	JMP colorchar_lookup
+colorchar_found
+	LDX #$00
+colorchar_loop
+	JSR colorchar_move
+	INC printchar_read+1
+	INX
+	JSR colorchar_move
+	INC printchar_read+1
+	LDA printchar_write+1
+	CLC
+	ADC #$7C
+	STA printchar_write+1
+	BCC colorchar_increment
+	INC printchar_write+2
+colorchar_increment
+	INX
+	CPX #$10
+	BNE colorchar_loop
+	PLY	
+	PLX
+	PLA
+	RTS
+colorchar_move ; subroutine
+	LDA #%10000000
+	STA colorchar_input
+colorchar_move_start
+	STZ printchar_storage	
+	LDA #%11000000
+	STA colorchar_output
+	LDY #$04
+colorchar_move_loop
+	JSR printchar_read
+	AND colorchar_input
+	BEQ colorchar_move_skip
+	LDA printchar_storage
+	ORA colorchar_output
+	STA printchar_storage
+colorchar_move_skip
+	CLC
+	ROR colorchar_input
+	CLC
+	ROR colorchar_output
+	CLC
+	ROR colorchar_output
+	DEY
+	BNE colorchar_move_loop
+	LDA printchar_storage
+	JSR printchar_write
+	INC printchar_write+1
+	LDA colorchar_input
+	BNE colorchar_move_start
+	RTS
 
-;fill
-;	PHA
-;	LDA fill_x
-;	STA fill_corner_x
-;	LDA fill_y
-;	STA fill_corner_y
-;	LDA #$01
-;	STA fill_dir_x
-;	LDA #$FF
-;	STA fill_dir_y
-;	JSR fill_quad
-;	DEC fill_corner_x
-;	LDA #$FF
-;	STA fill_dir_x
-;	LDA #$FF
-;	STA fill_dir_y
-;	JSR fill_quad
-;	INC fill_corner_y
-;	LDA #$FF
-;	STA fill_dir_x
-;	LDA #$01
-;	STA fill_dir_y
-;	JSR fill_quad
-;	INC fill_corner_x
-;	LDA #$01
-;	STA fill_dir_x
-;	LDA #$01
-;	STA fill_dir_y
-;	JSR fill_quad
-;	DEC fill_corner_y
-;	PLA
-;	RTS
-;fill_quad
-;	PHX
-;	LDA fill_corner_x
-;	STA fill_x
-;	LDA fill_corner_y
-;	STA fill_y
-;	LDA fill_color
-;	PHA
-;	LDX #$00
-;fill_loop
-;	INX
-;	PLA
-;	PHA
-;	AND #%11110000
-;	STA fill_color
-;	LDA fill_x
-;	CLC
-;	ROR A
-;	STA sub_write+1
-;	STA sub_read+1
-;	BCC fill_half
-;	PLA
-;	PHA
-;	AND #%00001111
-;	STA fill_color
-;fill_half
-;	LDA fill_y
-;	CLC
-;	ROR A
-;	STA sub_write+2
-;	STA sub_read+2
-;	BCC fill_dot
-;	LDA sub_write+1
-;	CLC
-;	ADC #$80
-;	STA sub_write+1
-;	STA sub_read+1
-;fill_dot
-;	LDA sub_write+2
-;	CLC
-;	CMP #$08
-;	BCC fill_exit
-;	CLC
-;	CMP #$80
-;	BCS fill_exit
-;	JSR sub_read
-;	AND fill_color
-;	BNE fill_row
-;	JSR sub_read
-;	ORA fill_color
-;	JSR sub_write
-;	LDA fill_x
-;	CLC
-;	ADC fill_dir_x
-;	STA fill_x
-;	BEQ fill_row
-;	CMP #$FF
-;	BEQ fill_row
-;	JMP fill_loop
-;fill_row
-;	CPX #$01
-;	BEQ fill_exit
-;	LDX #$00
-;	LDA fill_corner_x
-;	STA fill_x
-;	LDA fill_y
-;	CLC
-;	ADC fill_dir_y
-;	STA fill_y
-;	JMP fill_loop
-;fill_exit
-;	PLA
-;	STA fill_color
-;	PLX
-;	RTS
-	
-	
-
-
-
-
-
+colornum ; converts hex to decimal value
+	PHY
+	PHX
+	PHA
+	LDX #$00
+colornum_100_count
+	TAY
+	SEC
+	SBC #$64 ; 100 in hex
+	INX
+	BCS colornum_100_count
+	DEX
+	TXA
+	CMP #$00
+	BEQ colornum_100_skip
+	CLC
+	ADC #"0"
+	JSR colorchar
+colornum_100_skip
+	INC printchar_x
+	TYA
+	LDX #$00
+colornum_10_count
+	TAY
+	SEC
+	SBC #$0A ; 10 in hex
+	INX
+	BCS colornum_10_count
+	DEX
+	TXA
+;	CMP #$00
+;	BEQ colornum_10_skip
+	CLC
+	ADC #"0"
+	JSR colorchar
+colornum_10_skip
+	INC printchar_x
+	TYA
+	CLC
+	ADC #"0"
+	JSR colorchar
+	INC printchar_x
+	PLA
+	PLX
+	PLY
+	RTS
 
 
 
@@ -1962,7 +3102,6 @@ mouse_isr_input
 	JSR longdelay ; 100ms minimum delay
 	JSR longdelay
 	JSR longdelay
-	JSR longdelay
 	LDA #%01000000 ; PA6 is output now
 	STA via_da
 	LDA #%00000000
@@ -2061,10 +3200,8 @@ int_init
 via_init
 	LDA #%10111111 ; PB is mostly output
 	STA via_db
-	LDA #%00000000 ; set output pins to low
-	STA via_pb
-	LDA #%00000000 ; PA is all input
-	STA via_da
+	STZ via_pb ; set output pins to low
+	STZ via_da ; PA is all input
 	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
 	STA via_pcr
 	LDA #%10000011 ; interrupts on CA1 and CA2
@@ -2091,11 +3228,15 @@ via_init
 	STZ mouse_counter
 	STZ mouse_state
 
-	LDA #%11000000 ; free run on T1 for audio
+	LDA #%11010000 ; free run on T1 for audio
 	STA via_acr
 	
 	STZ via_t1cl ; zero out T1 counter to silence
 	STZ via_t1ch
+
+	LDA #$FF
+	STA via+$08 ; T2 timer for random numbers
+	STA via+$09 
 	
 	CLI
 

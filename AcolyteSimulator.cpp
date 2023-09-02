@@ -169,6 +169,10 @@ uint8_t ReadFunction(uint16_t address)
 				if ((RAM[(VIA_PAGE+0x0000)]&0x08) == 0x00 && joystick == true) return 0xF3;
 				else return 0xFF;
 			}
+			else if (address == (VIA_PAGE + 0x0008))
+			{
+				return rand() % 256;
+			}
 			else return 0xFF;	
 		}
 		else return RAM[address];
@@ -1111,6 +1115,13 @@ int main(const int argc, const char **argv)
 		printf("Argument is a 16KB binary file used for ROM\n");
 		
 		return 0;
+	}
+
+	int temp;
+
+	for (int i=0; i<(int)(time(0)%1000); i++)
+	{
+		temp = rand() % 1000;
 	}
 
 	int random_value = 0;
