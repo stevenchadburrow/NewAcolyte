@@ -250,7 +250,7 @@ defense_score_value	.EQU $02FD
 clock_low		.EQU $02FE
 clock_high		.EQU $02FF
 
-sub_random		.EQU $0300 ; 4 bytes long
+sub_random		.EQU $0300 ; 18 bytes long
 
 basic_variables_low	.EQU $0312 ; 26 bytes
 basic_variables_high	.EQU $032C ; 26 bytes
@@ -335,6 +335,28 @@ intruder_enemy_visible	.EQU $0420
 basic_memory		.EQU $8000 ; 16KB available
 basic_memory_end	.EQU $C000 ; one past
 
+rogue_player_x		.EQU $0400 ; reusing memory
+rogue_player_y		.EQU $0401
+rogue_stairs_x		.EQU $0402
+rogue_stairs_y		.EQU $0403
+rogue_check_x		.EQU $0404
+rogue_check_y		.EQU $0405
+rogue_location_x	.EQU $0406
+rogue_location_y	.EQU $0407
+rogue_walk_low		.EQU $0408
+rogue_walk_high		.EQU $0409
+rogue_filter		.EQU $040A
+rogue_lamp		.EQU $040B
+rogue_pickaxe		.EQU $040C
+
+
+rogue_floor		.EQU $8000 ; 2K
+rogue_visible		.EQU $8800 ; 2K
+rogue_map_stop		.EQU $8F00 ; 4 lines from end
+rogue_lighted		.EQU $9000 ; 2K
+rogue_digged		.EQU $9800 ; 2K
+rogue_map_end		.EQU $A000 ; end
+
 
 
 
@@ -344,9 +366,7 @@ basic_memory_end	.EQU $C000 ; one past
 
 vector_reset
 
-	JSR int_init
-	JSR via_init
-	JSR joy_init
+	
 
 	JSR setup
 
@@ -355,3864 +375,546 @@ vector_reset
 
 
 
+rogue
+	LDA #$E1 ; produces greyscale
+	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
 
-defense
-	LDA #$00
-	STA $FFFF ; turn on 16 color mode
-	STZ defense_paused
-	LDA #$0A ; arbitrary amount of initial population
-	STA defense_pop_value
-	STZ defense_score_value
-	LDA #$08
-	STA defense_round_value
-	LDA #$20
-	STA defense_ammo_constant
-	LDA #$0A
-	STA defense_enemy_constant
-	LDA #$08
-	STA defense_random_constant
-	LDA #$05
-	STA defense_speed_constant
-	JMP defense_start
+	; setup stats here
+	LDA #$02
+	STA rogue_lamp
+	LDA #$02
+	STA rogue_pickaxe
 
-defense_reset
-	LDA defense_ammo_value
-	CLC
-	ROR A
-	CLC
-	ROR A
-	CLC
-	ADC defense_score_value
-	INC A
-	STA defense_score_value
-	LDA defense_ammo_constant
-	CLC
-	ADC #$02
-	STA defense_ammo_constant
-	LDA defense_enemy_constant
-	CLC
-	ADC #$04
-	STA defense_enemy_constant
-	LDA defense_random_constant
-	CLC
-	ADC #$02
-	STA defense_random_constant
-	DEC defense_round_value
-	LDA defense_round_value
-	CLC
-	CMP #$03
-	BCS defense_start
-	LDA #$08
-	STA defense_round_value
-	DEC defense_speed_constant
-	LDA defense_speed_constant
-	CMP #$03
-	BCS defense_start
-	
-	LDA #$08
-	STA defense_round_value
-	LDA #$05
-	STA defense_speed_constant
+rogue_reset
+	JSR rogue_clear
+	JSR rogue_walk
+	JSR rogue_location
+	JSR rogue_display
+	JSR rogue_controls
 
-defense_start
-	STZ mouse_prev_x
-	STZ mouse_prev_y
-	LDA #$08
-	STA mouse_prev_buttons
-	STA mouse_buttons
-	LDA #$80
-	STA mouse_pos_x
-	STA mouse_pos_y
-	LDA #$08
-	STA defense_key_space
-	STZ defense_key_up
-	STZ defense_key_down
-	STZ defense_key_left
-	STZ defense_key_right
-	STZ defense_dist_value
-	LDA defense_enemy_constant ; arbitrary amount of enemies each round
-	STA defense_enemy_value
-	STA defense_stop_value
-	LDA defense_ammo_constant ; arbitrary amount of ammo each round
-	STA defense_ammo_value
-	LDX #$00
-defense_target_loop
-	STZ defense_missile_x,X
-	STZ defense_missile_y,X
-	STZ defense_target_x,X
-	STZ defense_target_y,X
-	STZ defense_slope_x,X
-	STZ defense_slope_y,X
-	STZ defense_count_x,X
-	STZ defense_count_y,X
-	JSR defense_prev_clear
-	INX
-	CPX #$10
-	BNE defense_target_loop
-	STZ sub_write+1	
-	LDA #$08
+
+rogue_clear
+	PHA
+	LDA #<rogue_floor
+	STA sub_write+1
+	LDA #>rogue_floor
 	STA sub_write+2
-defense_screen_loop
-	LDA #$00 ; black
+rogue_clear_loop_floor
+	LDA #"#" ; wall value
 	JSR sub_write
 	INC sub_write+1
-	BNE defense_screen_loop
+	BNE rogue_clear_loop_floor
 	INC sub_write+2
 	LDA sub_write+2
-	CMP #$80
-	BNE defense_screen_loop
-	LDY #$00
-defense_input_loop
-	LDA defense_pop_value
-	BEQ defense_input_gameover
-	CMP #$80
-	BCS defense_input_gameover
-	JMP defense_input_check
-defense_input_gameover
-	JMP defense_gameover ; game over when zero population
-defense_input_check
-	LDA defense_enemy_value
-	BNE defense_input_continue
-	LDA defense_stop_value
-	BNE defense_input_continue
-	JMP defense_reset ; reset game after each round
-defense_input_continue
-	CLC
-	JSR sub_random ; helps randomize
-	JSR defense_keyboard
-	LDA defense_paused
-	BNE defense_input_continue
-	JSR defense_joystick
-	JSR defense_keycheck
-	JSR defense_mouse
-	LDA clock_low
-	CLC
-	CMP #$01 ; arbitrary for frame rate
-	BCC defense_input_loop
-	STZ clock_low
-	JSR defense_player
-	INY
-	CPY defense_speed_constant ; arbitrary for missile movement
-	BCC defense_input_loop
-	LDA #$12
-	JSR defense_draw_building
-	LDA #$23
-	JSR defense_draw_building
-	LDA #$4D
-	JSR defense_draw_building
-	LDA #$5E
-	JSR defense_draw_building
-	LDA #$37
-	JSR defense_draw_bunker
-	LDY #$00
-	JSR defense_draw
-	LDA #$00
-	STA printchar_x
-	LDA #$1D
-	STA printchar_y
-	LDA defense_pop_value
-	JSR colornum
-	LDA #$0E
-	STA printchar_x
-	LDA #$1D
-	STA printchar_y
-	LDA defense_ammo_value
-	JSR colornum
-	LDA #$1C
-	STA printchar_x
-	LDA #$1D
-	STA printchar_y
-	LDA defense_score_value
-	JSR colornum
-	CLC
-	JSR sub_random
-	CLC
-	CMP defense_random_constant ; arbitrary for appearance enemy missiles
-	BCS defense_input_jump_loop
-	LDA defense_enemy_value
-	BEQ defense_input_jump_loop
-	JSR defense_enemy
-	CMP #$00
-	BEQ defense_input_jump_loop
-	DEC defense_enemy_value
-defense_input_jump_loop
-	JMP defense_input_loop
-
-defense_gameover
-	LDA #$0D
-	STA printchar_x
-	LDA #$10
-	STA printchar_y	
-	LDY #$00
-defense_gameover_end_loop
-	LDA defense_end_text,Y
-	JSR colorchar
-	INC printchar_x
-	INY
-	CPY #$07
-	BNE defense_gameover_end_loop
-defense_gameover_preloop
-	JSR inputchar
-	CMP #$00
-	BNE defense_gameover_preloop
-	LDA joy_buttons
-	CMP #$FF
-	BNE defense_gameover_preloop
-	LDA mouse_buttons
-	AND #%00000111
-	BNE defense_gameover_preloop
-defense_gameover_postloop
-	JSR inputchar
-	JSR function_keys
-	CMP #$20 ; space
-	BEQ defense_gameover_reset
-	LDA joy_buttons
-	AND #%00110000
-	CMP #%00110000
-	BNE defense_gameover_reset
-	LDA mouse_buttons
-	AND #%00000111
-	BNE defense_gameover_reset
-	JMP defense_gameover_postloop
-defense_gameover_reset
-	JMP defense
-
-defense_player
-	PHA
-	LDA #$00
-	JSR defense_draw_cursor
-	LDA mouse_pos_x
-	CLC
-	CMP #$10
-	BCS defense_player_next1
-	LDA #$10
-	STA mouse_pos_x
-defense_player_next1
-	LDA mouse_pos_x
-	CLC
-	CMP #$F1
-	BCC defense_player_next2
-	LDA #$F0
-	STA mouse_pos_x
-defense_player_next2
-	LDA mouse_pos_y
-	CLC
-	CMP #$20
-	BCS defense_player_next3
-	LDA #$20
-	STA mouse_pos_y
-defense_player_next3
-	LDA mouse_pos_y
-	CLC
-	CMP #$E1
-	BCC defense_player_next4
-	LDA #$E0
-	STA mouse_pos_y
-defense_player_next4
-	; check to see that mouse hasn't just passed through the borders!
-	LDA mouse_pos_x
-	STA mouse_prev_x
-	LDA mouse_pos_y
-	STA mouse_prev_y
-	LDA #$FF
-	JSR defense_draw_cursor
-	PLA
-	RTS
-
-defense_enemy
-	PHX
-	PHY
-	LDX #$08
-defense_enemy_loop
-	CLC
-	JSR sub_random ; helps randomize
-	LDA defense_target_x,X
-	BNE defense_enemy_increment
-	LDA defense_target_y,X
-	BNE defense_enemy_increment
-defense_enemy_random
-	CLC
-	JSR sub_random
-	CLC
-	CMP #$18
-	BCC defense_enemy_random
-	CLC
-	CMP #$E8
-	BCS defense_enemy_random
-	STA defense_target_x,X
-	LDA #$08
-	STA defense_target_y,X
-	CLC
-	JSR sub_random
-	CLC
-	CMP #$18
-	BCC defense_enemy_random
-	CLC
-	CMP #$E8
-	BCS defense_enemy_random
-	STA defense_missile_x,X ; initial location of missiles
-	LDA #$F0
-	STA defense_missile_y,X
-	LDA defense_target_x,X
-	SEC
-	SBC defense_missile_x,X
-	BCC defense_enemy_invert1
-	STA defense_slope_x,X
-	STA defense_count_x,X
-	JMP defense_enemy_skip
-defense_enemy_invert1
-	EOR #$FF
-	INC A
-	STA defense_slope_x,X
-	STA defense_count_x,X
-defense_enemy_skip
-	LDA defense_target_y,X
-	SEC
-	SBC defense_missile_y,X
-	BCC defense_enemy_invert2
-	STA defense_slope_y,X
-	STA defense_count_y,X
-	JMP defense_mouse_exit
-defense_enemy_invert2
-	EOR #$FF
-	INC A
-	STA defense_slope_y,X
-	STA defense_count_y,X
-	JMP defense_enemy_exit
-defense_enemy_increment
-	INX
-	CPX #$10
-	BNE defense_enemy_loop
-	PLY
-	PLX
-	LDA #$00 ; error
-	RTS
-defense_enemy_exit
-	PLY
-	PLX
-	LDA #$FF ; success
-	RTS
-
-defense_keycheck
-	PHA
-	LDA defense_key_up
-	BEQ defense_keycheck_down
-	INC defense_key_up
-	CLC
-	CMP #$FF
-	BCC defense_keycheck_down
-	STZ defense_key_up
-	INC defense_key_up
-	INC mouse_pos_y
-	INC mouse_pos_y
-defense_keycheck_down
-	LDA defense_key_down
-	BEQ defense_keycheck_left
-	INC defense_key_down
-	CLC
-	CMP #$FF
-	BCC defense_keycheck_left
-	STZ defense_key_down
-	INC defense_key_down
-	DEC mouse_pos_y
-	DEC mouse_pos_y
-defense_keycheck_left
-	LDA defense_key_left
-	BEQ defense_keycheck_right
-	INC defense_key_left
-	CLC
-	CMP #$FF
-	BCC defense_keycheck_right
-	STZ defense_key_left
-	INC defense_key_left
-	DEC mouse_pos_x
-	DEC mouse_pos_x
-defense_keycheck_right
-	LDA defense_key_right
-	BEQ defense_keycheck_exit
-	INC defense_key_right
-	CLC
-	CMP #$FF
-	BCC defense_keycheck_exit
-	STZ defense_key_right
-	INC defense_key_right
-	INC mouse_pos_x
-	INC mouse_pos_x
-defense_keycheck_exit
-	PLA
-	RTS
-
-defense_keyboard
-	PHX
-	PHA
-defense_keyboard_start
-	LDX key_read
-	CPX key_write
-	BNE defense_keyboard_compare
-	JMP defense_keyboard_exit
-defense_keyboard_compare
-	LDA key_read
-	INC A
-	STA key_read
-	CMP #$80
-	BNE defense_keyboard_success
-	STZ key_read
-defense_keyboard_success
-	LDA key_array,X
-	CLC
-	CMP #$10
-	BCS defense_keyboard_others
-	JMP defense_keyboard_functions
-defense_keyboard_others
-	CMP #$F0 ; release
-	BEQ defense_keyboard_release
-	CMP #$E0 ; extended
-	BEQ defense_keyboard_extended
-	CMP #ps2_escape ; escape to exit
-	BNE defense_keyboard_regular
-	JMP defense_keyboard_escape
-defense_keyboard_regular
-	PHA
-	LDA key_release
-	BNE defense_keyboard_unpressed
-defense_keyboard_pressed
-	LDA key_extended
-	BNE defense_keyboard_pressed_shifted
-	PLA
-	PHA
-	CMP #ps2_space
-	BNE defense_keyboard_clear
-	LDA #$09
-	STA mouse_buttons
-	JMP defense_keyboard_clear
-defense_keyboard_pressed_shifted
-	PLA
-	PHA
-	CMP #ps2_arrow_up
-	BEQ defense_keyboard_pressed_up
-	CMP #ps2_arrow_down
-	BEQ defense_keyboard_pressed_down
-	CMP #ps2_arrow_left
-	BEQ defense_keyboard_pressed_left
-	CMP #ps2_arrow_right
-	BEQ defense_keyboard_pressed_right
-	JMP defense_keyboard_clear
-defense_keyboard_unpressed
-	LDA key_extended
-	BNE defense_keyboard_unpressed_shifted
-	PLA
-	PHA
-	CMP #ps2_space
-	BNE defense_keyboard_clear
-	LDA #$08
-	STA mouse_buttons
-	JMP defense_keyboard_clear
-defense_keyboard_unpressed_shifted
-	PLA
-	PHA
-	CMP #ps2_arrow_up
-	BEQ defense_keyboard_unpressed_up
-	CMP #ps2_arrow_down
-	BEQ defense_keyboard_unpressed_down
-	CMP #ps2_arrow_left
-	BEQ defense_keyboard_unpressed_left
-	CMP #ps2_arrow_right
-	BEQ defense_keyboard_unpressed_right
-defense_keyboard_clear
-	PLA
-	STZ key_release
-	STZ key_extended
-defense_keyboard_exit
-	PLA
-	PLX
-	RTS
-defense_keyboard_release
-	STA key_release
-	JMP defense_keyboard_exit
-defense_keyboard_extended
-	STA key_extended
-	JMP defense_keyboard_exit
-defense_keyboard_pressed_space
-	INC defense_key_space
-	JMP defense_keyboard_clear
-defense_keyboard_pressed_up
-	INC defense_key_up
-	JMP defense_keyboard_clear
-defense_keyboard_pressed_down
-	INC defense_key_down
-	JMP defense_keyboard_clear
-defense_keyboard_pressed_left
-	INC defense_key_left
-	JMP defense_keyboard_clear
-defense_keyboard_pressed_right
-	INC defense_key_right
-	JMP defense_keyboard_clear
-defense_keyboard_unpressed_space
-	STZ defense_key_space
-	JMP defense_keyboard_clear
-defense_keyboard_unpressed_up
-	STZ defense_key_up
-	JMP defense_keyboard_clear
-defense_keyboard_unpressed_down
-	STZ defense_key_down
-	JMP defense_keyboard_clear
-defense_keyboard_unpressed_left
-	STZ defense_key_left
-	JMP defense_keyboard_clear
-defense_keyboard_unpressed_right
-	STZ defense_key_right
-	JMP defense_keyboard_clear
-defense_keyboard_escape
-	LDA key_release
-	BEQ defense_keyboard_pause_start
-	STZ key_release
-	STZ key_extended
-	JMP defense_keyboard_exit
-defense_keyboard_pause_start
-	LDA defense_paused
-	EOR #$FF
-	STA defense_paused
-	BEQ defense_keyboard_pause_stop
-	LDA #$0D
-	STA printchar_x
-	LDA #$10
-	STA printchar_y	
-	LDY #$00
-defense_keyboard_pause_start_loop
-	LDA defense_pause_text,Y
-	JSR colorchar
-	INC printchar_x
-	INY
-	CPY #$06
-	BNE defense_keyboard_pause_start_loop
-	STZ key_release
-	STZ key_extended
-	JMP defense_keyboard_exit
-defense_keyboard_pause_stop
-	LDA #$0D
-	STA printchar_x
-	LDA #$10
-	STA printchar_y	
-	LDY #$00
-defense_keyboard_pause_stop_loop
-	LDA #" "
-	JSR colorchar
-	INC printchar_x
-	INY
-	CPY #$06
-	BNE defense_keyboard_pause_stop_loop
-	STZ key_release
-	STZ key_extended
-	JMP defense_keyboard_exit	
-defense_keyboard_functions
-	TAX
-	LDA key_conversion,X
-	STZ key_release
-	STZ key_extended
-	JSR function_keys
-	JMP defense_keyboard_exit
-
-defense_joystick
-	PHA
-	LDA joy_buttons
-	PHA
-	AND #%00000001
-	BNE defense_joystick_zero1
-	INC defense_key_up
-	JMP defense_joystick_next1
-defense_joystick_zero1
-	LDA defense_joy_prev
-	AND #%00000001
-	BNE defense_joystick_next1
-	STZ defense_key_up
-defense_joystick_next1
-	PLA
-	PHA
-	AND #%00000010
-	BNE defense_joystick_zero2
-	INC defense_key_down
-	JMP defense_joystick_next2
-defense_joystick_zero2
-	LDA defense_joy_prev
-	AND #%00000010
-	BNE defense_joystick_next2
-	STZ defense_key_down
-defense_joystick_next2
-	PLA
-	PHA
-	AND #%00000100
-	BNE defense_joystick_zero3
-	INC defense_key_left
-	JMP defense_joystick_next3
-defense_joystick_zero3
-	LDA defense_joy_prev
-	AND #%00000100
-	BNE defense_joystick_next3
-	STZ defense_key_left
-defense_joystick_next3
-	PLA
-	PHA
-	AND #%00001000
-	BNE defense_joystick_zero4
-	INC defense_key_right
-	JMP defense_joystick_next4
-defense_joystick_zero4
-	LDA defense_joy_prev
-	AND #%00001000
-	BNE defense_joystick_next4
-	STZ defense_key_right
-defense_joystick_next4
-	PLA
-	PHA
-	AND #%00110000 ; B or C buttons
-	CMP #%00110000
-	BEQ defense_joystick_zero5
-	LDA #$09
-	STA mouse_buttons
-	JMP defense_joystick_next5
-defense_joystick_zero5
-	LDA defense_joy_prev
-	AND #%00110000 ; B or C buttons
-	CMP #%00110000
-	BEQ defense_joystick_next5
-	LDA #$08
-	STA mouse_buttons	
-defense_joystick_next5
-	PLA
-	STA defense_joy_prev
-	PLA
-	RTS
-	
-defense_mouse
-	PHA
-	PHX
-	PHY
-	LDA mouse_buttons
-	AND #%00001111
-	CMP mouse_prev_buttons
-	BNE defense_mouse_click
-	JMP defense_mouse_exit ; odd?
-defense_mouse_click
-	LDA mouse_buttons
-	AND #%00000001
-	BNE defense_mouse_click_start
-	JMP defense_mouse_exit
-defense_mouse_click_start
-	LDX #$00
-defense_mouse_click_loop
-	LDA defense_target_x,X
-	BNE defense_mouse_click_increment
-	LDA defense_target_y,X
-	BNE defense_mouse_click_increment
-	LDA defense_ammo_value
-	BEQ defense_mouse_click_increment
-	DEC defense_ammo_value
-	LDA #$00
-	JSR defense_draw_target
-	LDA mouse_pos_x
-	STA defense_target_x,X
-	LDA mouse_pos_y
-	STA defense_target_y,X
-	LDA #$80
-	STA defense_missile_x,X ; initial location of missiles
-	LDA #$08
-	STA defense_missile_y,X
-	LDA defense_target_x,X
-	SEC
-	SBC defense_missile_x,X
-	BCC defense_mouse_click_invert1
-	STA defense_slope_x,X
-	STA defense_count_x,X
-	JMP defense_mouse_click_skip
-defense_mouse_click_invert1
-	EOR #$FF
-	INC A
-	STA defense_slope_x,X
-	STA defense_count_x,X
-defense_mouse_click_skip
-	LDA defense_target_y,X
-	SEC
-	SBC defense_missile_y,X
-	BCC defense_mouse_click_invert2
-	STA defense_slope_y,X
-	STA defense_count_y,X
-	JMP defense_mouse_exit
-defense_mouse_click_invert2
-	EOR #$FF
-	INC A
-	STA defense_slope_y,X
-	STA defense_count_y,X
-	JMP defense_mouse_exit
-defense_mouse_click_increment
-	INX
-	CPX #$08
-	BNE defense_mouse_click_loop
-	JMP defense_mouse_exit
-defense_mouse_exit
-	LDA mouse_buttons
-	AND #%00001111
-	STA mouse_prev_buttons
-	PLY
-	PLX
-	PLA
-	RTS
-	
-defense_draw
-	PHA
-	PHX
-	PHY
-	LDX #$00
-defense_draw_loop
-	LDA defense_slope_x,X
-	BNE defense_draw_jump_show
-	LDA defense_slope_y,X
-	BNE defense_draw_jump_show
-	LDA defense_count_x,X
-	BEQ defense_draw_jump_increment1
-	JMP defense_draw_collide_start
-defense_draw_jump_show	
-	JMP defense_draw_show
-defense_draw_jump_increment1
-	JMP defense_draw_increment
-defense_draw_collide_start
-	LDA #$0F
-	STA defense_count_y,X
-defense_draw_collide_loop
-	TXA
-	CMP defense_count_y,X
-	BNE defense_draw_collide_next
-	JMP defense_draw_collide_increment
-defense_draw_collide_next
-	LDY defense_count_y,X
-	LDA defense_slope_x,Y
-	BNE defense_draw_collide_check
-	LDA defense_slope_y,Y
-	BNE defense_draw_collide_check
-	JMP defense_draw_collide_increment
-defense_draw_collide_check
-	CLC
-	CPX #$08
-	BCS defense_draw_collide_distance
-	CLC
-	CPY #$08
-	BCS defense_draw_collide_distance
-	JSR defense_pythagorean
-	CLC
-	CMP #$20 ; arbitrary no-collide distance
-	BCS defense_draw_collide_distance
-	JMP defense_draw_collide_increment
-defense_draw_collide_distance
-	LDA defense_missile_x,Y
-	SEC
-	SBC defense_missile_x,X	
-	CLC
-	CMP #$08
-	BCC defense_draw_collide_x
-	CLC	
-	CMP #$F8
-	BCS defense_draw_collide_x
-	JMP defense_draw_collide_increment
-defense_draw_collide_x
-	LDA defense_missile_y,Y
-	SEC
-	SBC defense_missile_y,X
-	CLC
-	CMP #$08
-	BCC defense_draw_collide_y
-	CLC	
-	CMP #$F8
-	BCS defense_draw_collide_y
-	JMP defense_draw_collide_increment
-defense_draw_collide_y
-	PHX
-	TYA
-	TAX
-	CLC
-	CPX #$08
-	BCS defense_draw_collide_target
-	LDA #$00
-	JSR defense_draw_target
-defense_draw_collide_target
-	LDA #$00
-	JSR defense_draw_line
-	STZ defense_slope_x,X
-	STZ defense_slope_y,X
-	LDA #$40 ; arbitrary duration of explosion
-	STA defense_count_x,X
-	STZ defense_count_y,X
-	CLC
-	CPX #$08
-	BCC defense_draw_collide_target_end
-	PHX
-	TXA
-	SEC
-	SBC #$08
-	TAX
-	JSR defense_prev_clear
-	PLX
-defense_draw_collide_target_end
-	PLX
-defense_draw_collide_increment
-	DEC defense_count_y,X
-	LDA defense_count_y,X
-	CMP #$FF
-	BEQ defense_draw_collide_explosion 
-	JMP defense_draw_collide_loop
-defense_draw_jump_increment2	
-	JMP defense_draw_increment
-defense_draw_collide_explosion
-	CPX #$08
-	BCC defense_draw_explosion_white
-	LDA #$99 ; red
-	BNE defense_draw_explosion_color
-defense_draw_explosion_white
-	LDA #$FF
-defense_draw_explosion_color
-	JSR defense_draw_explosion
-	DEC defense_count_x,X
-	BNE defense_draw_jump_increment2
-	LDA #$00
-	JSR defense_draw_explosion
-	CLC
-	CPX #$08
-	BCC defense_draw_zero_stats
-	LDA defense_missile_y,X
-	CLC
-	CMP #$18 ; height above ground to still hit pop
-	BCS defense_draw_zero_score
-	DEC defense_pop_value
-	JMP defense_draw_zero_stats
-defense_draw_zero_score
-	;INC defense_score_value
-defense_draw_zero_stats
-	STZ defense_missile_x,X
-	STZ defense_missile_y,X
-	STZ defense_target_x,X
-	STZ defense_target_y,X
-	STZ defense_count_x,X
-	CLC
-	CPX #$08
-	BCC defense_draw_jump_increment2
-	DEC defense_stop_value
-	JMP defense_draw_increment
-defense_draw_show
-	CLC
-	CPX #$08
-	BCS defense_draw_show_target
-	LDA #$FF
-	JSR defense_draw_target
-defense_draw_show_target
-	LDA #$00
-	JSR defense_draw_missile
-	CLC
-	CPX #$08
-	BCS defense_draw_prev_line
-	JMP defense_draw_move_start
-defense_draw_prev_line
-	JSR defense_draw_line	
-	PHY
-	TXA
-	SEC
-	SBC #$08
-	TAY
-	LDA defense_missile_x,X
-	CLC
-	ROR A
-	CMP defense_prev1_x,Y
-	BNE defense_draw_prev_start
-	LDA defense_missile_y,X
-	EOR #$FF
-	INC A
-	CLC
-	ROR A
-	CMP defense_prev1_y,Y
-	BNE defense_draw_prev_start
-	JMP defense_draw_prev_end
-defense_draw_prev_start
-;	LDA defense_prev7_x,Y
-;	STA defense_prev8_x,Y
-;	LDA defense_prev7_y,Y
-;	STA defense_prev8_y,Y
-;	LDA defense_prev6_x,Y
-;	STA defense_prev7_x,Y
-;	LDA defense_prev6_y,Y
-;	STA defense_prev7_y,Y
-;	LDA defense_prev5_x,Y
-;	STA defense_prev6_x,Y
-;	LDA defense_prev5_y,Y
-;	STA defense_prev6_y,Y
-;	LDA defense_prev4_x,Y
-;	STA defense_prev5_x,Y
-;	LDA defense_prev4_y,Y
-;	STA defense_prev5_y,Y
-;	LDA defense_prev3_x,Y
-;	STA defense_prev4_x,Y
-;	LDA defense_prev3_y,Y
-;	STA defense_prev4_y,Y
-;	LDA defense_prev2_x,Y
-;	STA defense_prev3_x,Y
-;	LDA defense_prev2_y,Y
-;	STA defense_prev3_y,Y
-;	LDA defense_prev1_x,Y
-;	STA defense_prev2_x,Y
-;	LDA defense_prev1_y,Y
-;	STA defense_prev2_y,Y
-
-	PHX
-	TYA
-	CLC
-	ADC #<defense_prev7_y
-	STA sub_read+1
-	LDA #>defense_prev7_y
-	STA sub_read+2
-	TYA
-	CLC
-	ADC #<defense_prev8_y
-	STA sub_write+1
-	LDA #>defense_prev8_y
-	STA sub_write+2
-	LDX #$0E
-defense_draw_prev_loop
-	JSR sub_read
-	JSR sub_write
-	LDA sub_read+1
-	SEC
-	SBC #$08
-	STA sub_read+1
-	LDA sub_write+1
-	SEC
-	SBC #$08
-	STA sub_write+1
-	DEX
-	BNE defense_draw_prev_loop
-	PLX
-
-	LDA defense_missile_x,X
-	CLC
-	ROR A
-	STA defense_prev1_x,Y
-	LDA defense_missile_y,X
-	EOR #$FF
-	INC A
-	CLC
-	ROR A
-	STA defense_prev1_y,Y
-defense_draw_prev_end
-	PLY
-defense_draw_move_start
-	LDY #$00
-defense_draw_move_counter
-	DEC defense_count_y,X
-	BNE defense_draw_move_skip1
-	LDA defense_slope_y,X
-	STA defense_count_y,X
-	LDA defense_target_x,X
-	CLC
-	CMP defense_missile_x,X
-	BEQ defense_draw_move_skip1
-	BCC defense_draw_move_invert1
-	INC defense_missile_x,X
-	INY
-	JMP defense_draw_move_skip2
-defense_draw_move_invert1
-	DEC defense_missile_x,X
-	INY
-defense_draw_move_skip1
-	DEC defense_count_x,X
-	BNE defense_draw_move_skip2
-	LDA defense_slope_x,X
-	STA defense_count_x,X
-	LDA defense_target_y,X
-	CLC
-	CMP defense_missile_y,X
-	BEQ defense_draw_move_skip2
-	BCC defense_draw_move_invert2
-	INC defense_missile_y,X
-	INY
-	JMP defense_draw_move_skip2
-defense_draw_move_invert2
-	DEC defense_missile_y,X
-	INY
-defense_draw_move_skip2
-	LDA defense_missile_x,X
-	CMP defense_target_x,X
-	BNE defense_draw_move_done
-	LDA defense_missile_y,X
-	CMP defense_target_y,X
-	BNE defense_draw_move_done
-	CLC
-	CPX #$08
-	BCS defense_draw_move_target
-	LDA #$00
-	JSR defense_draw_target
-defense_draw_move_target
-	STZ defense_slope_x,X
-	STZ defense_slope_y,X
-	LDA #$40 ; arbitrary duration of explosion
-	STA defense_count_x,X
-	STZ defense_count_y,X
-	CLC
-	CPX #$08
-	BCC defense_draw_move_target_end
-	PHX
-	TXA
-	SEC
-	SBC #$08
-	TAX
-	JSR defense_prev_clear
-	PLX
-defense_draw_move_target_end
-	JMP defense_draw_increment
-defense_draw_move_done
-	CPY #$00
-	BNE defense_draw_move_missile 
-	JMP defense_draw_move_counter
-defense_draw_move_missile
-	CPX #$08
-	BCC defense_draw_missile_check
-	LDA #$09 ; red
-	JSR defense_draw_line
-	LDA #$99 ; red
-	BNE defense_draw_missile_color
-defense_draw_missile_check
-	CLC
-	CPY defense_round_value ; arbitrary speed of missiles
-	BCS defense_draw_missile_white
-	JMP defense_draw_move_counter
-defense_draw_missile_white
-	LDA #$FF
-defense_draw_missile_color
-	JSR defense_draw_missile
-defense_draw_increment
-	INX
-	CPX #$10
-	BEQ defense_draw_exit
-	JMP defense_draw_loop
-defense_draw_exit
-	PLY
-	PLX
-	PLA
-	RTS
-
-defense_draw_cursor
-	PHY
-	PHX
-	PHA
-	LDA mouse_prev_x
-	CLC
-	ROR A
-	STA sub_write+1
-	LDA mouse_prev_y
-	EOR #$FF
-	INC A
-	CLC
-	ROR A
-	STA sub_write+2 
-	CLC
-	CMP #$08
-	BCC defense_draw_cursor_exit
-	LDY #$00
-	LDX #$00
-defense_draw_cursor_loop
-	LDA defense_cursor_data,X
-	BEQ defense_draw_cursor_skip
-	PLA
-	PHA
-	AND defense_cursor_data,X
-	JSR sub_write
-defense_draw_cursor_skip
-	INC sub_write+1
-	INX
-	INY
-	CPY #$04
-	BNE defense_draw_cursor_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$7C
-	STA sub_write+1
-	BCC defense_draw_cursor_line
-	INC sub_write+2
-defense_draw_cursor_line
-	CPX #$10
-	BNE defense_draw_cursor_loop
-defense_draw_cursor_exit
-	PLA
-	PLX	
-	PLY
-	RTS
-
-defense_draw_target
-	PHY
-	PHX
-	PHA
-	LDA defense_target_x,X
-	SEC
-	SBC #$08
-	CLC
-	ROR A
-	STA sub_write+1
-	LDA defense_target_y,X
-	CLC
-	ADC #$04
-	EOR #$FF
-	INC A
-	CLC
-	ROR A
-	STA sub_write+2 
-	CLC
-	CMP #$08
-	BCC defense_draw_target_exit
-	LDY #$00
-	LDX #$00
-defense_draw_target_loop
-	LDA defense_target_data,X
-	BEQ defense_draw_target_skip
-	PLA
-	PHA
-	AND defense_target_data,X
-	JSR sub_write
-defense_draw_target_skip
-	INC sub_write+1
-	INX
-	INY
-	CPY #$04
-	BNE defense_draw_target_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$7C
-	STA sub_write+1
-	BCC defense_draw_target_line
-	INC sub_write+2
-defense_draw_target_line
-	CPX #$10
-	BNE defense_draw_target_loop
-defense_draw_target_exit
-	PLA
-	PLX	
-	PLY
-	RTS
-
-defense_draw_missile
-	PHY
-	PHX
-	PHA
-	LDA defense_missile_x,X
-	CLC
-	ROR A
-	DEC A
-	STA sub_write+1
-	LDA defense_missile_y,X
-	EOR #$FF
-	INC A
-	CLC
-	ROR A
-	DEC A
-	STA sub_write+2 
-	CLC
-	CMP #$08
-	BCC defense_draw_missile_exit
-	LDY #$00
-	LDX #$00
-defense_draw_missile_loop
-	LDA defense_missile_data,X
-	BEQ defense_draw_missile_skip
-	PLA
-	PHA
-	AND defense_missile_data,X
-	JSR sub_write
-defense_draw_missile_skip
-	INC sub_write+1
-	INX
-	INY
-	CPY #$02
-	BNE defense_draw_missile_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$7E
-	STA sub_write+1
-	BCC defense_draw_missile_line
-	INC sub_write+2
-defense_draw_missile_line
-	CPX #$08
-	BNE defense_draw_missile_loop
-defense_draw_missile_exit
-	PLA
-	PLX	
-	PLY
-	RTS
-
-defense_draw_line
-	PHY
-	PHX
-	PHA
-	TXA
-	SEC
-	SBC #$08
-	TAX
-	LDY #$08
-defense_draw_line_loop
-	LDA defense_prev1_x,X
-	DEC A
-	STA sub_write+1
-	LDA defense_prev1_y,X
-	DEC A
-	STA sub_write+2
-	CLC
-	CMP #$08
-	BCC defense_draw_line_exit
-	CLC
-	CMP #$80
-	BCS defense_draw_line_exit
-	PLA
-	PHA
-	JSR sub_write
-	TXA
-	CLC
-	ADC #$10
-	TAX
-	DEY
-	BNE defense_draw_line_loop
-defense_draw_line_exit
-	PLA
-	PLX	
-	PLY
-	RTS
-
-defense_draw_explosion
-	PHY
-	PHX
-	PHA
-	LDA defense_missile_x,X
-	SEC
-	SBC #$08
-	CLC
-	ROR A
-	STA sub_write+1
-	LDA defense_missile_y,X
-	CLC
-	ADC #$04
-	EOR #$FF
-	INC A
-	CLC
-	ROR A
-	SEC
-	SBC #$02
-	STA sub_write+2 
-	CLC
-	CMP #$08
-	BCC defense_draw_explosion_exit
-	LDY #$00
-	LDX #$00
-defense_draw_explosion_loop
-	LDA defense_explosion_data,X
-	BEQ defense_draw_explosion_skip
-	PLA
-	PHA
-	AND defense_explosion_data,X
-	JSR sub_write
-defense_draw_explosion_skip
-	INC sub_write+1
-	INX
-	INY
-	CPY #$08
-	BNE defense_draw_explosion_loop
-	LDY #$00
-	TXA
-	SEC
-	SBC #$08
-	TAX
-	LDA sub_write+1
-	CLC
-	ADC #$78
-	STA sub_write+1
-	BCC defense_draw_explosion_line
-	TXA
-	CLC
-	ADC #$08
-	TAX
-	INC sub_write+2
-defense_draw_explosion_line
-	CPX #$40
-	BNE defense_draw_explosion_loop
-defense_draw_explosion_exit
-	PLA
-	PLX	
-	PLY
-	RTS
-
-defense_draw_building
-	PHY
-	PHX
-	PHA
-	STA sub_write+1
-	LDA #$78
-	STA sub_write+2
-	LDX #$08 ; length
-	LDA #$FF ; color
-	JSR defense_draw_line_horizontal
-	LDX #$08
-	LDA #$FF
-	JSR defense_draw_line_vertical
-	PLA
-	PHA
-	CLC
-	ADC #$06
-	STA sub_write+1
-	LDA #$7C
-	STA sub_write+2
-	LDX #$08
-	LDA #$FF
-	JSR defense_draw_line_vertical
-	PLA
-	PHA
-	CLC
-	ADC #$06
-	STA sub_write+1
-	LDA #$7C
-	STA sub_write+2
-	LDX #$08
-	LDA #$FF
-	JSR defense_draw_line_horizontal
-	LDX #$08
-	LDA #$FF
-	JSR defense_draw_line_vertical
-	PLA
-	PHA
-	STA sub_write+1
-	LDA #$78
-	STA sub_write+2
-	LDX #$10
-	LDA #$FF
-	JSR defense_draw_line_vertical
-defense_draw_building_exit
-	PLA
-	PLX
-	PLY
-	RTS
-
-defense_draw_bunker
-	PHY
-	PHX
-	PHA
-	STA sub_write+1
-	LDA #$76
-	STA sub_write+2
-	LDX #$10 ; length
-	LDA #$FF ; color
-	JSR defense_draw_line_horizontal
-	PLA
-	PHA
-	STA sub_write+1
-	LDA #$74
-	STA sub_write+2
-	LDX #$10 ; length
-	LDA #$FF ; color
-	JSR defense_draw_line_horizontal
-	LDX #$18
-	LDA #$FF
-	JSR defense_draw_line_vertical
-	PLA
-	PHA
-	STA sub_write+1
-	LDA #$74
-	STA sub_write+2
-	LDX #$18
-	LDA #$FF
-	JSR defense_draw_line_vertical
-defense_draw_bunker_exit
-	PLA
-	PLX
-	PLY
-	RTS
-
-defense_draw_line_horizontal
+	CMP #>rogue_visible
+	BNE rogue_clear_loop_floor
+rogue_clear_loop_visible
+	LDA #$FF ; normally $00
 	JSR sub_write
 	INC sub_write+1
-	DEX
-	BNE defense_draw_line_horizontal
-	RTS
-
-defense_draw_line_vertical
-	JSR sub_write
-	PHA
-	LDA sub_write+1
-	CLC
-	ADC #$80
-	STA sub_write+1
-	BCC defense_draw_line_vertical_increment
-	INC sub_write+2
-defense_draw_line_vertical_increment
-	PLA
-	DEX
-	BNE defense_draw_line_vertical
-	RTS
-	
-defense_pythagorean
-	LDA defense_missile_x,Y
-	SEC
-	SBC #$80
-	CLC
-	CMP #$80
-	BCC defense_pythagorean_ready
-	EOR #$FF
-	INC A
-defense_pythagorean_ready
-	STA defense_dist_value
-	CMP defense_missile_y,Y
-	BCC defense_pythagorean_horizontal
-	CLC
-	ROR A
-	CLC
-	ADC defense_missile_y,Y
-	STA defense_dist_value
-	RTS
-defense_pythagorean_horizontal
-	LDA defense_missile_y,Y
-	CLC
-	ROR A
-	CLC
-	ADC defense_dist_value
-	STA defense_dist_value
-	RTS
-
-defense_prev_clear
-	PHA
-	PHY
-	TXA
-	CLC
-	ADC #<defense_prev1_x
-	STA sub_write+1
-	LDA #>defense_prev1_x
-	STA sub_write+2
-	LDY #$10
-defense_prev_clear_loop
-	LDA #$00
-	JSR sub_write
-	LDA sub_write+1
-	CLC
-	ADC #$08
-	STA sub_write+1
-	DEY
-	BNE defense_prev_clear_loop
-	PLY
-	PLA
-	RTS
-	
-
-defense_cursor_data
-	.BYTE $FF,$FF,$FF,$E1
-	.BYTE $FF,$FF,$E1,$00
-	.BYTE $FF,$E1,$00,$00
-	.BYTE $E1,$00,$00,$00
-
-defense_target_data
-	.BYTE $00,$00,$00,$1E
-	.BYTE $00,$00,$1E,$FF
-	.BYTE $00,$1E,$FF,$FF
-	.BYTE $1E,$FF,$FF,$FF
-
-defense_missile_data
-	.BYTE $1E,$E1
-	.BYTE $EF,$FE
-	.BYTE $EF,$FE
-	.BYTE $1E,$E1
-
-defense_explosion_data
-	.BYTE $00,$00,$1E,$FF,$FF,$E1,$00,$00
-	.BYTE $00,$1E,$FF,$FF,$FF,$FF,$E1,$00
-	.BYTE $1E,$FF,$FF,$FF,$FF,$FF,$FF,$E1
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $1E,$FF,$FF,$FF,$FF,$FF,$FF,$E1
-	.BYTE $00,$1E,$FF,$FF,$FF,$FF,$E1,$00
-	.BYTE $00,$00,$1E,$FF,$FF,$E1,$00,$00
-
-defense_end_text
-	.BYTE "The End"
-
-defense_pause_text
-	.BYTE "Paused"
-
-
-
-
-
-intruder_max_enemies		.EQU $2F ; $2F, a constant
-intruder_color_enemy		.EQU $77 ; constant
-intruder_color_shield		.EQU $AA ; constant
-intruder_color_missile		.EQU $DD ; constant
-intruder_color_mystery		.EQU $FF ; constant
-
-intruder
-	LDA #$00
-	STA $FFFF ; turn on 16 color mode
-
-	JMP intruder_init
-
-intruder_level_enemy_fall
-	.BYTE $10,$10,$30,$30,$50,$50,$70,$70
-intruder_level_enemy_speed
-	.BYTE $20,$30,$40,$50,$60,$70,$80,$90
-intruder_level_enemy_missile_speed
-	.BYTE $02,$02,$02,$02,$03,$03,$03,$03
-intruder_level_overall_delay
-	.BYTE $80,$78,$70,$68,$60,$50,$40,$30
-
-intruder_init
-	STZ intruder_paused
-	LDA #$03
-	STA intruder_player_lives
-	STZ intruder_level
-	STZ intruder_points_low
-	STZ intruder_points_high
-	STZ intruder_fire_delay
-	STZ intruder_hit_delay
-	
-intruder_init_level
-	LDA intruder_level
-	AND #%00000111
-	TAX
-	LDA #$3B ; #$2E? port change
-	STA intruder_player_pos
-	STZ intruder_button_left
-	STZ intruder_button_right
-	STZ intruder_button_fire
-	STZ intruder_missile_pos_y
-	STZ intruder_delay_timer
-	LDA intruder_level_enemy_fall,X
-	STA intruder_enemy_fall
-	LDA #$08
-	STA intruder_enemy_pos_x
-	LDA #$18
-	STA intruder_enemy_pos_y
-	LDA intruder_level_enemy_speed,X
-	STA intruder_enemy_speed
-	LDA intruder_level_enemy_missile_speed,X
-	STA intruder_enemy_miss_s
-	LDA #$28
-	STA intruder_enemy_miss_x
-	STZ intruder_enemy_miss_y
-	LDA #$00
-	STA intruder_mystery_pos
-	LDA #$01
-	STA intruder_mystery_speed
-	LDA intruder_level_overall_delay,X
-	STA intruder_overall_delay
-	LDA #$FA ; 250 in decimal
-	STA intruder_mystery_bank ; total points you can get from the mystery ship each round
-
-intruder_init_start
-	STZ sub_write+1				; clear out screen RAM
-	LDA #$08
-	STA sub_write+2
-intruder_init_wipeout
-	LDA #$00 ; fill color
-	JSR sub_write
-	INC sub_write+1
-	BNE intruder_init_wipeout
+	BNE rogue_clear_loop_visible
 	INC sub_write+2
 	LDA sub_write+2
-	CMP #$80
-	BNE intruder_init_wipeout
-
-	JSR intruder_draw_menu
-
-	LDX #intruder_max_enemies
-	LDA #$FF
-intruder_init_visible_loop
-	STA intruder_enemy_visible,X
-	DEX
-	CPX #$FF
-	BNE intruder_init_visible_loop
-
-	LDA #$14 ; #$0C port change
-	JSR intruder_init_shield
-	LDA #$28 ; #$18 port change
-	JSR intruder_init_shield
-	LDA #$3C ; #$24 port change
-	JSR intruder_init_shield
-	LDA #$50 ; #$30 port change
-	JSR intruder_init_shield
-	LDA #$64 ; #$3C port change
-	JSR intruder_init_shield
-
-	LDY #$00
-	JMP intruder_draw_mystery	
-
-intruder_input
-	LDA clock_low
-	CLC	
-	CMP #$01
-	BCC intruder_input_keys
-	LDA intruder_hit_delay
-	BEQ intruder_input_clock
-	DEC intruder_hit_delay
-intruder_input_clock
-	STZ clock_low
-	DEC intruder_fire_delay
-	LDA intruder_fire_delay
-	CMP #$FF
-	BNE intruder_input_fire_delay
-	STZ intruder_fire_delay
-intruder_input_fire_delay
-	LDA joy_buttons
-	AND intruder_joy_prev ; maybe?
-	CMP #$FF
-	BEQ intruder_input_keys
-	JMP intruder_joy
-intruder_input_keys
-	;LDA joy_buttons
-	;STA intruder_joy_prev ; maybe?
-	LDX key_read
-	CPX key_write
-	BNE intruder_input_next
-	LDA intruder_paused
-	BNE intruder_input
-	JMP intruder_input_check
-intruder_input_next
-	CLC
-	JSR sub_random ; just to add randomness
-	LDA key_array,X
-	INC key_read
-	BPL intruder_input_positive
-	STZ key_read
-intruder_input_positive
-	CMP #$F0
-	BEQ intruder_input_release
-	STA intruder_char_value
-	LDA key_release
-	STZ key_release
-	BEQ intruder_input_down
-	LDA intruder_char_value
-	CMP #ps2_escape
-	BEQ intruder_input_pause
-	LDA intruder_paused
-	BNE intruder_input
-	LDA intruder_char_value
-	CMP #ps2_arrow_left
-	BEQ intruder_input_left_up
-	CMP #$1C ; A
-	BEQ intruder_input_left_up
-	CMP #ps2_arrow_right
-	BEQ intruder_input_right_up
-	CMP #$23 ; D
-	BEQ intruder_input_right_up
-	CMP #ps2_space
-	BEQ intruder_input_fire_up
-	CMP #ps2_arrow_up
-	BEQ intruder_input_fire_up
-	CMP #$1D ; W
-	BEQ intruder_input_fire_up
-	TAX
-	LDA key_conversion,X
-	STZ key_release
-	STZ key_extended
-	JSR function_keys
-	JMP intruder_input_check
-
-intruder_input_pause
-	LDA intruder_paused
-	EOR #$FF
-	STA intruder_paused
-	BEQ intruder_input_pause_clear
-	JSR intruder_pause_draw
-	JMP intruder_input
-intruder_input_pause_clear
-	JSR intruder_pause_clear
-	STZ key_read
-	STZ key_write
-	STZ intruder_button_left
-	STZ intruder_button_right
-	STZ intruder_button_fire
-	JMP intruder_input
-
-intruder_input_release
-	STA key_release
-	JMP intruder_input_check
-intruder_input_down
-	LDA intruder_char_value
-	CMP #ps2_arrow_left
-	BEQ intruder_input_left_down
-	CMP #$1C ; A
-	BEQ intruder_input_left_down
-	CMP #ps2_arrow_right
-	BEQ intruder_input_right_down
-	CMP #$23 ; D
-	BEQ intruder_input_right_down
-	CMP #ps2_space
-	BEQ intruder_input_fire_down
-	CMP #ps2_arrow_up
-	BEQ intruder_input_fire_down
-	CMP #$1D ; W
-	BEQ intruder_input_fire_down
-	JMP intruder_input_check
-intruder_input_left_up
-	STZ intruder_button_left
-	JMP intruder_input_check
-intruder_input_right_up
-	STZ intruder_button_right
-	JMP intruder_input_check
-intruder_input_fire_up
-	STZ intruder_button_fire
-	JMP intruder_input_check
-intruder_input_left_down
-	STA intruder_button_left
-	JMP intruder_input_check
-intruder_input_right_down	
-	STA intruder_button_right
-	JMP intruder_input_check
-intruder_input_fire_down	
-	STA intruder_button_fire
-	JMP intruder_input_check
-
-intruder_joy
-	LDA joy_buttons
-	ORA #%11001111
-	CMP #$FF 
-	BEQ intruder_joy_nofire
-	LDA #$FF
-	STA intruder_button_fire
-	JMP intruder_joy_continue
-intruder_joy_nofire
-	STZ intruder_button_fire
-intruder_joy_continue
-	LDA joy_buttons
-	ORA #%11111011
-	CMP #$FF
-	BEQ intruder_joy_noleft
-	LDA #$FF
-	STA intruder_button_left
-	JMP intruder_joy_next
-intruder_joy_noleft
-;	LDA intruder_joy_prev
-;	ORA #%11111011
-;	CMP #$FF
-;	BEQ intruder_joy_next
-	STZ intruder_button_left
-intruder_joy_next
-	LDA joy_buttons
-	ORA #%11110111
-	CMP #$FF
-	BEQ intruder_joy_noright
-	LDA #$FF
-	STA intruder_button_right
-	JMP intruder_joy_exit
-intruder_joy_noright
-;	LDA intruder_joy_prev
-;	ORA #%11110111
-;	CMP #$FF
-;	BEQ intruder_joy_exit
-	STZ intruder_button_right
-intruder_joy_exit
-	LDA joy_buttons
-	STA intruder_joy_prev ; maybe?
-	JMP intruder_input_check
-
-intruder_input_check	
-	INY
-	CPY intruder_overall_delay
-	BEQ intruder_input_check_next
-	JMP intruder_input
-intruder_input_check_next
-	LDY #$00
-	DEC intruder_delay_timer
-	LDA intruder_delay_timer
-	AND #%00001111
-	BEQ intruder_reaction
-	JMP intruder_input
-intruder_reaction
-	LDA intruder_button_left
-	BEQ intruder_reaction_next1
-	LDA intruder_player_pos
-	SEC
-	SBC #$02
-	CLC
-	CMP #$02 ; #$08 port change
-	BCC intruder_reaction_next1
-	STA intruder_player_pos
-intruder_reaction_next1
-	LDA intruder_button_right
-	BEQ intruder_reaction_next2
-	LDA intruder_player_pos
-	CLC
-	ADC #$02
-	CLC
-	CMP #$75 ; #$42 port change
-	BCS intruder_reaction_next2
-	STA intruder_player_pos
-intruder_reaction_next2
-	LDA intruder_fire_delay
-	BNE intruder_reaction_next3
-	LDA intruder_button_fire
-	BEQ intruder_reaction_next3
-	STZ intruder_button_fire
-	LDA #$10 ; arbitrary wait time between firing
-	STA intruder_fire_delay
-	LDA intruder_missile_pos_y
-	BNE intruder_reaction_next3
-	LDA intruder_player_pos
-	CLC
-	ADC #$04
-	STA intruder_missile_pos_x
-	LDA #$72
-	STA intruder_missile_pos_y
-intruder_reaction_next3
-	NOP
-
-
-intruder_draw_mystery
-	LDA intruder_mystery_pos
-	CMP #$FF
-	BEQ intruder_draw_player
-	CLC	
-	ADC intruder_mystery_speed
-	BMI intruder_draw_mystery_offscreen
-	CLC	
-	CMP #$78 ; #$50 port change
-	BCS intruder_draw_mystery_offscreen
-	JMP intruder_draw_mystery_onscreen
-intruder_draw_mystery_offscreen
-	LDA #$FF
-	STA intruder_mystery_pos
-	JSR intruder_mystery_clear
-	JMP intruder_draw_player
-intruder_draw_mystery_onscreen
-	STA intruder_mystery_pos
-	STA sub_write+1
-	LDA #$10
-	STA sub_write+2
-	LDA #<intruder_mystery_data
-	STA sub_index+1
-	LDA #>intruder_mystery_data
-	STA sub_index+2
-	LDX #$00
-	LDY #$00
-intruder_draw_mystery_loop
-	JSR sub_index
-	AND #intruder_color_mystery
+	CMP #>rogue_lighted
+	BNE rogue_clear_loop_visible
+rogue_clear_loop_lighted
+	LDA #$00 ; normally $00
 	JSR sub_write
 	INC sub_write+1
-	INX
-	INY
-	CPY #$08
-	BNE intruder_draw_mystery_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$78
-	STA sub_write+1
-	BCC intruder_draw_mystery_loop
+	BNE rogue_clear_loop_lighted
 	INC sub_write+2
 	LDA sub_write+2
-	CMP #$14
-	BCC intruder_draw_mystery_loop
-
-
-intruder_draw_player
-	LDA intruder_player_pos
-	STA sub_write+1
-	LDA #$76
-	STA sub_write+2
-	LDA #<intruder_player_data
-	STA sub_index+1
-	LDA #>intruder_player_data
-	STA sub_index+2
-	LDX #$00
-	LDY #$00
-intruder_draw_player_loop
-	LDA intruder_hit_delay
-	BEQ intruder_draw_player_normal
-	AND #%00000001
-	BEQ intruder_draw_player_normal
-	JSR sub_index
-	AND #intruder_color_missile
-	AND #%11101110
+	CMP #>rogue_digged
+	BNE rogue_clear_loop_lighted
+rogue_clear_loop_digged
+	LDA #$04 ; arbitrary hardness of stone
 	JSR sub_write
-	JMP intruder_draw_player_increment	
-intruder_draw_player_normal
-	JSR sub_index
-	JSR sub_write
-intruder_draw_player_increment
 	INC sub_write+1
-	INX
-	INY
-	CPY #$0A
-	BNE intruder_draw_player_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$76
-	STA sub_write+1
-	BCC intruder_draw_player_loop
+	BNE rogue_clear_loop_digged
 	INC sub_write+2
 	LDA sub_write+2
-	CMP #$79
-	BCC intruder_draw_player_loop
-	LDA intruder_missile_pos_y
-	BNE intruder_draw_missile
-	
-	LDX #$FF
-	LDY #$18
-intruder_draw_no_missile
-	NOP
-	DEX
-	BNE intruder_draw_no_missile
-	DEY
-	BNE intruder_draw_no_missile
-
-	JMP intruder_draw_enemy_missile
-intruder_draw_missile
-	LDA intruder_missile_pos_x
-	STA sub_write+1
-	LDA intruder_missile_pos_y
-	STA sub_write+2
-	JSR intruder_draw_missile_particle_clear
-	LDA intruder_missile_pos_y
-	SEC
-	SBC #$04
-	CLC	
-	CMP #$08
-	BCS intruder_draw_missile_normal
-	JMP intruder_draw_missile_reset
-intruder_draw_missile_normal
-	STA intruder_missile_pos_y
+	CMP #>rogue_map_end
+	BNE rogue_clear_loop_digged
+	JSR rogue_light
+	PLA
+	RTS
 
 
-	LDA intruder_missile_pos_y
-	CLC	
-	CMP #$10
-	BCC intruder_draw_missile_mystery_skip
-	CLC
-	CMP #$14
-	BCS intruder_draw_missile_mystery_skip
-	LDA intruder_missile_pos_x
-	CLC
-	CMP intruder_mystery_pos
-	BCC intruder_draw_missile_mystery_skip
-	SEC
-	SBC #$08
-	CMP intruder_mystery_pos
-	BCS intruder_draw_missile_mystery_skip
-	LDA #$FF
-	STA intruder_mystery_pos ; hit the mystery ship!
-	JSR intruder_mystery_clear
-
-;	LDA #$41
-;	STA printchar_x
-;	LDA #$0C
-;	STA printchar_y
-;	LDA #" "
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-	LDA intruder_mystery_bank ; only 250 points available each level
-	BEQ intruder_draw_missile_mystery_skip
-	SEC
-	SBC #$32
-	STA intruder_mystery_bank
-	LDA #$32 ; 50 in decimal
-	CLC
-	ADC intruder_points_low
-	STA intruder_points_low ; increment points
-	CLC
-	CMP #$64 ; 100 in decimal
-	BCC intruder_draw_missile_mystery_skip
-	SEC
-	SBC #$64
-	STA intruder_points_low
-	INC intruder_points_high
-	LDA intruder_points_high
-	AND #%00000011 ; every 400 points is new life
-	BNE intruder_draw_missile_mystery_skip
-	LDA intruder_player_lives
-	AND #%00001111
-	CLC
-	CMP #$09
-	BCS intruder_draw_missile_mystery_skip
-	INC intruder_player_lives
-intruder_draw_missile_mystery_skip
-	JSR intruder_draw_menu
-
-	LDX #intruder_max_enemies
-intruder_draw_missile_array
-	LDA intruder_enemy_visible,X
-	BNE intruder_draw_missile_check
-	JMP intruder_draw_missile_loop
-intruder_draw_missile_check
-	TXA
-	AND #%11111000
-	EOR #$FF
-	INC A
-	ADC intruder_missile_pos_y
-	CLC
-	CMP intruder_enemy_pos_y
-	BCS intruder_draw_missile_check_next1
-	JMP intruder_draw_missile_loop
-intruder_draw_missile_check_next1
-	SEC
-	SBC #$04
-	CLC
-	CMP intruder_enemy_pos_y
-	BCC intruder_draw_missile_check_next2
-	JMP intruder_draw_missile_loop
-intruder_draw_missile_check_next2
-	TXA
-	AND #%00000111
-	PHY ; port change down
-	TAY
-	LDA #$00
-intruder_draw_enemy_check_addition
-	CLC
-	ADC #$0E
-	DEY
-	BNE intruder_draw_enemy_check_addition
-	PLY	
-;	CLC
-;	ROL A
-;	ROL A
-;	ROL A ; port change up
-	ADC intruder_enemy_pos_x
-	CLC
-	ADC #$04 ; should be #$05?
-	CLC
-	CMP intruder_missile_pos_x
-	BCS intruder_draw_missile_check_next3
-	JMP intruder_draw_missile_loop
-intruder_draw_missile_check_next3
-	SEC
-	SBC #$05 ; #$05 port change
-	CLC
-	CMP intruder_missile_pos_x
-	BCC intruder_draw_missile_check_next4
-	JMP intruder_draw_missile_loop
-intruder_draw_missile_check_next4
-	LDA #$80	
-	STA intruder_enemy_visible,X ; hit enemy
-	STZ intruder_missile_pos_y
-
-;	LDA #$41
-;	STA printchar_x
-;	LDA #$0C
-;	STA printchar_y
-;	LDA #" "
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-;	JSR printchar
-	TXA
-	AND #%11111000
-	CLC
-	ROR A
-	ROR A
-	ROR A
-	EOR #$FF
-	DEC A
-	AND #%00000111
-	CLC
-	ADC intruder_points_low
-	STA intruder_points_low ; increment points
-	CLC
-	CMP #$64 ; 100 in decimal
-	BCC intruder_draw_missile_points
-	SEC
-	SBC #$64
-	STA intruder_points_low
-	INC intruder_points_high
-	LDA intruder_points_high
-	AND #%00000011 ; every 400 points is new life
-	BNE intruder_draw_missile_points
-	LDA intruder_player_lives
-	AND #%00001111
-	CLC
-	CMP #$09
-	BCS intruder_draw_missile_points
-	INC intruder_player_lives
-intruder_draw_missile_points
-	JSR intruder_draw_menu
-
-	PHX
-	LDX #intruder_max_enemies
-intruder_draw_missile_win_loop
-	LDA intruder_enemy_visible,X
-	AND #%01111111
-	BNE intruder_draw_missile_win_fail
-	DEX
-	CPX #$FF
-	BNE intruder_draw_missile_win_loop
-	PLX
-	JMP intruder_nextlevel ; won the game!
-intruder_draw_missile_win_fail
-	PLX
-intruder_draw_missile_loop
-	DEX
-	CPX #$FF
-	BEQ intruder_draw_missile_flying
-	JMP intruder_draw_missile_array
-intruder_draw_missile_flying
-	LDA intruder_missile_pos_y
-	BNE intruder_draw_missile_flying_next1
-	JMP intruder_draw_enemy_missile
-intruder_draw_missile_flying_next1
-	LDA intruder_missile_pos_x
-	STA sub_write+1
-	LDA intruder_missile_pos_y
-	STA sub_write+2
-	PHY
-	LDY #intruder_color_missile
-	JSR intruder_draw_missile_particle_color
-	PLY
-	CPX #$00
-	BNE intruder_draw_missile_flying_next2
-	JMP intruder_draw_enemy_missile
-intruder_draw_missile_flying_next2
-	LDA intruder_missile_pos_x
-	STA sub_write+1
-	LDA intruder_missile_pos_y
-	STA sub_write+2
-	LDY #intruder_color_missile
-	JSR intruder_draw_missile_particle_clear
-intruder_draw_missile_reset
-	STZ intruder_missile_pos_y
-
-	JSR intruder_draw_menu
-
-intruder_draw_enemy_missile
-	LDA intruder_enemy_miss_y
-	BEQ intruder_draw_enemy_missile_skip
-	LDA intruder_enemy_miss_x
-	STA sub_write+1
-	LDA intruder_enemy_miss_y
-	STA sub_write+2
-	LDY #intruder_color_enemy
-	JSR intruder_draw_missile_particle_clear
-	LDA intruder_enemy_miss_y
-	BEQ intruder_draw_enemy_missile_skip
-	JMP intruder_draw_enemy_missile_ready
-intruder_draw_enemy_missile_skip
-	LDA intruder_delay_timer
-	CLC
-	CMP intruder_enemy_speed 
-	BCC intruder_draw_enemy_missile_timed
-	JMP intruder_draw_enemy
-intruder_draw_enemy_missile_timed
-	LDA intruder_enemy_fall
-	EOR #$FF
-	STA intruder_enemy_fall
+rogue_walk
+	PHA
+	STZ rogue_walk_low
+	STZ rogue_walk_high
 	CLC
 	JSR sub_random
-	AND intruder_enemy_speed
-	AND #%11110000
-	PHA
-	LDA intruder_enemy_fall
-	EOR #$FF
-	STA intruder_enemy_fall
-	PLA
-	CMP #$00 ; needed
-	BEQ intruder_draw_enemy_missile_search
-	JMP intruder_draw_enemy
-intruder_draw_enemy_missile_search
-
-
-	LDA intruder_mystery_pos
-	CMP #$FF
-	BNE intruder_draw_mystery_skip
+	AND #%00111111
+	STA rogue_player_x
+	STA rogue_stairs_x
+rogue_walk_random
 	CLC
 	JSR sub_random
-	AND #%00001111
-	BNE intruder_draw_mystery_skip
-	STZ intruder_mystery_pos
-	LDA #$01
-	STA intruder_mystery_speed
-	;LDA intruder_level
-	;CLC
-	;CMP #$04
-	;BCC intruder_draw_mystery_next
-	;LDA #$02
-	;STA intruder_mystery_speed
-intruder_draw_mystery_next
-	CLC
-	JSR sub_random
-	AND #%10000000
-	BEQ intruder_draw_mystery_skip
-	LDA #$77 ; #$4F port change
-	STA intruder_mystery_pos
-	LDA #$FF
-	STA intruder_mystery_speed
-	;LDA intruder_level
-	;CLC
-	;CMP #$04
-	;BCC intruder_draw_mystery_skip
-	;LDA #$FE
-	;STA intruder_mystery_speed
-intruder_draw_mystery_skip
-
-
-	CLC
-	JSR sub_random
-;	AND #%11111100
-;	CLC
-;	ROR A
-;	ROR A
-	AND #%00111111 ; new
-	CLC
-	CMP #$30
-	BCS intruder_draw_mystery_skip ; was 'intruder_draw_enemy_missile_search'
-	TAX
-	LDA intruder_enemy_visible,X
-	BEQ intruder_draw_mystery_skip	
-	TXA
-	AND #%00000111
-	PHY ; port change down
-	TAY
-	LDA #$00
-	CPY #$00
-	BEQ intruder_draw_enemy_missile_addition_end
-intruder_draw_enemy_missile_addition
-	CLC
-	ADC #$0E
-	DEY
-	BNE intruder_draw_enemy_missile_addition
-intruder_draw_enemy_missile_addition_end
-	PLY	
-;	CLC
-;	ROL A
-;	ROL A
-;	ROL A ; port change up
-	ADC intruder_enemy_pos_x
-	ADC #$02
-	STA intruder_enemy_miss_x
-	TXA
-	AND #%11111000
-	ADC intruder_enemy_pos_y
-	CLC
-	ADC #$04
-	STA intruder_enemy_miss_y
-intruder_draw_enemy_missile_ready
-	LDA intruder_enemy_miss_s
-	DEC A
-	CLC
-	ADC intruder_enemy_miss_y
-	CLC
-	CMP #$80
-	BCS intruder_draw_enemy_missile_miss
-	STA intruder_enemy_miss_y
-	CLC
-	CMP #$72
-	BCC intruder_draw_enemy_missile_normal	
-	LDA intruder_player_pos
-	CLC
-	ADC #$08
-	CLC
-	CMP intruder_enemy_miss_x
-	BCC intruder_draw_enemy_missile_normal
-	SEC
-	SBC #$08
-	CMP intruder_enemy_miss_x
-	BCS intruder_draw_enemy_missile_normal
-	DEC intruder_player_lives ; got hit!
-	LDA #$40 ; arbitrary length of time
-	STA intruder_hit_delay
-
-	JSR intruder_draw_menu
-
-	LDA intruder_player_lives
-	AND #%00001111
-	BNE intruder_draw_enemy_missile_miss
-	JMP intruder_gameover
-intruder_draw_enemy_missile_normal
-	LDA intruder_enemy_miss_x
-	STA sub_write+1
-	LDA intruder_enemy_miss_y
-	STA sub_write+2
-	PHY
-	LDY #intruder_color_enemy
-	JSR intruder_draw_missile_particle_color
-	PLY
-	CPX #$00
-	BEQ intruder_draw_enemy
-	LDA intruder_enemy_miss_x
-	STA sub_write+1
-	LDA intruder_enemy_miss_y
-	STA sub_write+2
-	LDY #intruder_color_enemy
-	JSR intruder_draw_missile_particle_clear
-intruder_draw_enemy_missile_miss
-	STZ intruder_enemy_miss_y
-intruder_draw_enemy
-	LDX #intruder_max_enemies
-intruder_draw_enemy_array
-	LDA intruder_enemy_visible,X
-	BNE intruder_draw_enemy_visible
-	JMP intruder_draw_enemy_loop
-intruder_draw_enemy_visible
-	CMP #$80
-	BNE intruder_draw_enemy_full
-	JSR intruder_draw_enemy_clear
-	STZ intruder_enemy_visible,X
-	JMP intruder_draw_enemy_loop
-intruder_draw_enemy_full
-	PHX
-	TXA
-	AND #%00000111
-	PHY ; port change down
-	TAY
-	LDA #$00
-intruder_draw_enemy_full_addition
-	CLC
-	ADC #$0E
-	DEY
-	BNE intruder_draw_enemy_full_addition
-	PLY	
-;	CLC
-;	ROL A
-;	ROL A
-;	ROL A ; port change up
-	ADC intruder_enemy_pos_x
-	STA sub_write+1
-	TXA
-	AND #%11111000
-	ADC intruder_enemy_pos_y
-	STA sub_write+2
-	LDA intruder_level
-	AND #%00000001
-	BEQ intruder_draw_enemy_pic2
-	LDA intruder_enemy_pos_x
-	AND #%00000001
-	BEQ intruder_draw_enemy_pic1
-	LDA #<intruder_enemy_data1
-	STA sub_index+1
-	LDA #>intruder_enemy_data1
-	STA sub_index+2
-	JMP intruder_draw_enemy_pic_done
-intruder_draw_enemy_pic1
-	LDA #<intruder_enemy_data2
-	STA sub_index+1
-	LDA #>intruder_enemy_data2
-	STA sub_index+2
-	JMP intruder_draw_enemy_pic_done
-intruder_draw_enemy_pic2
-	LDA intruder_enemy_pos_x
-	AND #%00000001
-	BEQ intruder_draw_enemy_pic3
-	LDA #<intruder_enemy_data3
-	STA sub_index+1
-	LDA #>intruder_enemy_data3
-	STA sub_index+2
-	JMP intruder_draw_enemy_pic_done
-intruder_draw_enemy_pic3
-	LDA #<intruder_enemy_data4
-	STA sub_index+1
-	LDA #>intruder_enemy_data4
-	STA sub_index+2
-intruder_draw_enemy_pic_done
-	LDX #$00
-	LDY #$00
-	PHY
-intruder_draw_enemy_visible_loop
-	JSR sub_index
-	AND #intruder_color_enemy
-	JSR sub_write
-	INC sub_write+1
-	INX
-	INY
-	CPY #$06
-	BNE intruder_draw_enemy_visible_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$7A
-	STA sub_write+1
-	BCC intruder_draw_enemy_visible_loop
-	INC sub_write+2
-	LDA sub_write+2
-	CLC
-	CMP #$72
-	BCC intruder_draw_enemy_visible_continue ; too far down!
-	JMP intruder_gameover
-intruder_draw_enemy_visible_continue
-	PLA
-	INC A
-	CMP #$03
-	PHA
-	BNE intruder_draw_enemy_visible_loop
-	PLA
-	PLX
-intruder_draw_enemy_loop
-	DEX
-	CPX #$FF
-	BEQ intruder_draw_enemy_move
-	JMP intruder_draw_enemy_array
-intruder_draw_enemy_move
-	LDA intruder_delay_timer
-	CLC
-	CMP intruder_enemy_speed 
-	BCC intruder_draw_enemy_ready
-	JMP intruder_loop
-intruder_draw_enemy_ready
-	STZ intruder_delay_timer
-	LDA intruder_enemy_pos_y
-	AND #%00000001
-	BEQ intruder_draw_enemy_back
-	LDA #$01
-	JMP intruder_draw_enemy_shift
-intruder_draw_enemy_back
-	LDA #$FF
-intruder_draw_enemy_shift
-	CLC
-	ADC intruder_enemy_pos_x
-	STA intruder_enemy_pos_x
-	CLC
-	CMP #$16 ; #$0E port change
-	BCS intruder_draw_enemy_down
-	CLC
-	CMP #$02 ; #$02 port change
-	BCC intruder_draw_enemy_down
-	JMP intruder_loop
-intruder_draw_enemy_down
-	LDX #intruder_max_enemies
-intruder_draw_enemy_down_clear
-	LDA intruder_enemy_visible,X
-	BEQ intruder_draw_enemy_down_skip
-	JSR intruder_draw_enemy_clear
-intruder_draw_enemy_down_skip
-	DEX
-	CPX #$FF
-	BNE intruder_draw_enemy_down_clear
-	LDA intruder_enemy_fall
-	CLC
-	ROR A
-	ROR A
-	ROR A
-	ROR A 
-	CLC
-	ADC intruder_enemy_pos_y
-	STA intruder_enemy_pos_y
-intruder_loop
-	JMP intruder_input
-
-
-intruder_draw_menu
-	LDA #$03
-	STA printchar_x
-	LDA #$00
-	STA printchar_y
-	LDA intruder_points_low ; needs colornum to not display hundreds digit if zero!!!
-	JSR colornum
-	LDA #$01
-	STA printchar_x
-	LDA #$00
-	STA printchar_y
-	LDA intruder_points_high
-	JSR colornum
-	LDA #$3C
-	STA printchar_x
-	LDA #$00
-	STA printchar_y
-	LDA intruder_player_lives
-	JSR colornum
-	RTS
-
-
-intruder_gameover
-	JSR intruder_gameover_draw
-intruder_gameover_loop1
-	LDA joy_buttons
-	CMP #$FF
-	BNE intruder_gameover_loop1
-intruder_gameover_loop2
-	LDA joy_buttons
-	ORA #%11001111
-	CMP #$FF
-	BEQ intruder_gameover_keys
-	JMP intruder
-intruder_gameover_keys
-	JSR inputchar
-	CMP #$00
-	BEQ intruder_gameover_loop2
-	JSR function_keys
-	CMP #$20 ; space
-	BNE intruder_gameover_loop2
-	JMP intruder
-
-
-intruder_nextlevel
-	; put stuff here?
-	INC intruder_level
-	JMP intruder_init_level
-	
-
-intruder_mystery_clear
-	LDX #$00
-intruder_draw_mystery_clear1
-	STZ $1000,X
-	INX
-	BNE intruder_draw_mystery_clear1
-intruder_draw_mystery_clear2
-	STZ $1100,X
-	INX
-	BNE intruder_draw_mystery_clear2
-intruder_draw_mystery_clear3
-	STZ $1200,X
-	INX
-	BNE intruder_draw_mystery_clear3
-intruder_draw_mystery_clear4
-	STZ $1300,X
-	INX
-	BNE intruder_draw_mystery_clear4
-	RTS
-
-
-intruder_draw_missile_particle_write
-	PHA
-	AND #%00001111
-	JSR sub_write
-	INC sub_write+1
-	PLA
-	AND #%11110000
-	JSR sub_write
-	RTS
-
-intruder_draw_missile_particle_clear ; sub_write already populated!
-	PHX
-	LDX #$08
-intruder_draw_missile_particle_clear_start
-	LDA #$00
-	JSR intruder_draw_missile_particle_write
-	LDA sub_write+1
-	CLC
-	ADC #$7F
-	STA sub_write+1
-	BCC intruder_draw_missile_particle_clear_increment
-	INC sub_write+2
-intruder_draw_missile_particle_clear_increment	
-	DEX
-	BNE intruder_draw_missile_particle_clear_start
-	PLX
-	RTS
-
-intruder_draw_missile_particle_color ; sub_write already populated! Y has color	
-	TYA
-	EOR #$FF	
-	STA intruder_color_current
-	PHX
-	LDA sub_write+1
-	STA sub_read+1
-	LDA sub_write+2
-	STA sub_read+2
-	LDX #$08
-intruder_draw_missile_particle_color_start
-	JSR sub_read
-	AND intruder_color_current
-	BNE intruder_draw_missile_particle_color_hit
-	INC sub_read+1
-	JSR sub_read
-	AND intruder_color_current
-	BNE intruder_draw_missile_particle_color_hit
-	TYA
-	JSR intruder_draw_missile_particle_write
-	LDA sub_write+1
-	CLC
-	ADC #$7F
-	STA sub_write+1
-	STA sub_read+1
-	BCC intruder_draw_missile_particle_color_increment
-	INC sub_write+2
-	INC sub_read+2
-intruder_draw_missile_particle_color_increment	
-	DEX
-	BNE intruder_draw_missile_particle_color_start
-	PLX
-	LDX #$00
-	RTS
-intruder_draw_missile_particle_color_hit
-	JSR sub_read
-	PLX
-	LDX #$01
-	RTS
-
-intruder_draw_enemy_clear ; X already populated
-	PHX
-	TXA
-	AND #%00000111
-	PHY ; port change down
-	TAY
-	LDA #$00
-intruder_draw_enemy_clear_addition
-	CLC
-	ADC #$0E
-	DEY
-	BNE intruder_draw_enemy_clear_addition
-	PLY	
-;	CLC
-;	ROL A
-;	ROL A
-;	ROL A ; port change up
-	ADC intruder_enemy_pos_x
-	STA sub_write+1
-	TXA
-	AND #%11111000
-	ADC intruder_enemy_pos_y
-	STA sub_write+2
-	LDX #$00
-	LDY #$00
-	PHY
-intruder_draw_enemy_clear_loop
-	LDA #$00
-	JSR sub_write
-	INC sub_write+1
-	INX
-	INY
-	CPY #$06
-	BNE intruder_draw_enemy_clear_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$7A
-	STA sub_write+1
-	BCC intruder_draw_enemy_clear_loop
-	INC sub_write+2
-	PLA
-	INC A
-	CMP #$03
-	PHA
-	BNE intruder_draw_enemy_clear_loop
-	PLA
-	PLX
-	RTS
-
-intruder_init_shield ; A has horizontal position
-	STA sub_write+1
-	LDA #$6C
-	STA sub_write+2
-	LDA #<intruder_shield_data
-	STA sub_index+1
-	LDA #>intruder_shield_data
-	STA sub_index+2
-	LDX #$00
-	LDY #$00
-intruder_init_shield_loop
-	JSR sub_index
-	AND #intruder_color_shield
-	JSR sub_write
-	INC sub_write+1
-	INX
-	INY
-	CPY #$08
-	BNE intruder_init_shield_loop
-	LDY #$00
-	LDA sub_write+1
-	CLC
-	ADC #$78
-	STA sub_write+1
-	BCC intruder_init_shield_loop
-	INC sub_write+2
-	LDA sub_write+2
-	CMP #$72
-	BCC intruder_init_shield_loop
-	RTS
-
-intruder_pause_draw
-	LDA #$0D
-	STA printchar_x
-	LDA #$10
-	STA printchar_y	
-	LDY #$00
-intruder_pause_draw_loop
-	LDA intruder_pause_text,Y
-	JSR colorchar
-	INC printchar_x
-	INY
-	CPY #$06
-	BNE intruder_pause_draw_loop
-	RTS
-
-intruder_pause_clear
-	LDA #$0D
-	STA printchar_x
-	LDA #$10
-	STA printchar_y	
-	LDY #$00
-intruder_pause_clear_loop
-	LDA #" "
-	JSR colorchar
-	INC printchar_x
-	INY
-	CPY #$06
-	BNE intruder_pause_clear_loop
-	RTS
-
-intruder_gameover_draw
-	LDA #$0D
-	STA printchar_x
-	LDA #$10
-	STA printchar_y	
-	LDY #$00
-intruder_gameover_draw_loop
-	LDA intruder_gameover_text,Y
-	JSR colorchar
-	INC printchar_x
-	INY
-	CPY #$09
-	BNE intruder_gameover_draw_loop
-	RTS
-
-
-intruder_pause_text
-	.BYTE "Paused"
-intruder_gameover_text
-	.BYTE "Game "
-	.BYTE "Over"
-
-intruder_player_data
-	.BYTE $00,$00,$00,$00,$0F,$F0,$00,$00,$00,$00
-	.BYTE $00,$00,$00,$00,$FF,$FF,$00,$00,$00,$00
-	.BYTE $00,$00,$0F,$FF,$FF,$FF,$FF,$F0,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$FF,$FF,$00,$00
-	;.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-	;.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-
-intruder_shield_data
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$FF,$FF,$FF,$FF,$00
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-	.BYTE $FF,$FF,$FF,$00,$00,$FF,$FF,$FF
-
-intruder_mystery_data
-	.BYTE $00,$00,$FF,$00,$00,$FF,$00,$00
-	.BYTE $00,$00,$0F,$F0,$0F,$F0,$00,$00
-	.BYTE $00,$00,$00,$FF,$FF,$00,$00,$00
-	.BYTE $00,$00,$0F,$FF,$FF,$F0,$00,$00
-	.BYTE $00,$00,$FF,$0F,$F0,$FF,$00,$00
-	.BYTE $00,$00,$FF,$FF,$FF,$FF,$00,$00
-	.BYTE $00,$00,$0F,$FF,$FF,$F0,$00,$00
-	.BYTE $00,$00,$00,$FF,$FF,$00,$00,$00
-
-intruder_enemy_data1
-	.BYTE $00,$00,$FF,$FF,$00,$00
-	.BYTE $00,$0F,$FF,$FF,$F0,$00
-	.BYTE $00,$FF,$00,$00,$FF,$00
-	.BYTE $00,$0F,$FF,$FF,$F0,$00
-	.BYTE $00,$00,$F0,$0F,$00,$00
-	.BYTE $00,$FF,$F0,$0F,$FF,$00
-
-intruder_enemy_data2
-	.BYTE $00,$0F,$FF,$FF,$F0,$00
-	.BYTE $00,$FF,$00,$00,$FF,$00
-	.BYTE $00,$0F,$FF,$FF,$F0,$00
-	.BYTE $00,$00,$FF,$FF,$00,$00
-	.BYTE $00,$00,$F0,$0F,$00,$00
-	.BYTE $00,$0F,$F0,$0F,$F0,$00
-
-intruder_enemy_data3
-	.BYTE $00,$0F,$F0,$0F,$F0,$00
-	.BYTE $00,$F0,$FF,$FF,$0F,$00
-	.BYTE $00,$00,$F0,$0F,$00,$00
-	.BYTE $00,$FF,$FF,$FF,$FF,$00
-	.BYTE $00,$FF,$F0,$0F,$FF,$00
-	.BYTE $00,$F0,$00,$00,$0F,$00
-
-intruder_enemy_data4
-	.BYTE $00,$FF,$F0,$0F,$FF,$00
-	.BYTE $00,$00,$FF,$FF,$00,$00
-	.BYTE $00,$00,$F0,$0F,$00,$00
-	.BYTE $00,$0F,$FF,$FF,$F0,$00
-	.BYTE $00,$FF,$F0,$0F,$FF,$00
-	.BYTE $00,$0F,$F0,$0F,$F0,$00
-
-
-
-tetra_color_fore	.EQU $77
-tetra_color_back	.EQU $AA
-	
-tetra
-	LDA #$00
-	STA $FFFF ; turn on 16 color mode
-	
-	STZ sub_write+1				; clear out all screen RAM 
-	LDA #$08
-	STA sub_write+2
-tetra_screen_loop
-	LDA #$00 ; black
-	JSR sub_write
-	INC sub_write+1
-	BNE tetra_screen_loop
-	INC sub_write+2
-	LDA sub_write+2
-	CMP #$80
-	BNE tetra_screen_loop
-	STZ sub_write+1
-	LDA #$08
-	STA sub_write+2
-tetra_init_loop
-	LDA #tetra_color_back ; fill color
-	JSR sub_write
-	INC sub_write+1
-	LDA sub_write+1
-	CMP #$60 ; change this for width
-	BEQ tetra_init_loop_inc1
-	CMP #$E0 ; change this for width
-	BEQ tetra_init_loop_inc2
-	JMP tetra_init_loop
-tetra_init_loop_inc1
-	LDA #$80
-	STA sub_write+1
-	JMP tetra_init_loop
-tetra_init_loop_inc2
-	STZ sub_write+1
-	INC sub_write+2
-	LDA sub_write+2
-	CMP #$80
-	BNE tetra_init_loop
-
-tetra_random
-	CLC
-	JSR sub_random
-	AND #%00011100
-	BNE tetra_field_start
-	JMP tetra
-tetra_field_start
-	STA tetra_piece_next
-	STZ tetra_score_low
-	STZ tetra_score_high
-	LDA #$41 ; around once per second
-	STA tetra_speed
-	LDX #$00
-tetra_field_loop
-	STZ tetra_field,X
-	INX
-	BNE tetra_field_loop
-
-tetra_start
-	CLC
-	JSR sub_random
-	AND #%00011100
-	BEQ tetra_start
-	PHA
-	LDA tetra_piece_next
-	STA tetra_piece
-	PLA
-	STA tetra_piece_next
-	LDA #$06 
-	STA tetra_location
-	JSR tetra_display
-	JSR tetra_clear
-	JSR tetra_place
-	JSR tetra_draw
-tetra_loop
-	CLC
-	JSR sub_random ; to add some randomization
-	LDA clock_low
-	CLC
-	CMP tetra_speed
-	BCC tetra_continue
-	STZ clock_low
-	JSR tetra_down
-	JMP tetra_refresh
-tetra_continue
-	JSR tetra_input
-	CMP #$00
-	BEQ tetra_loop
-	CMP #$1B ; escape to pause
-	BNE tetra_next
-tetra_pause_start
-	LDA #$19
-	STA printchar_x
-	LDA #$1C
-	STA printchar_y	
-	LDY #$00
-tetra_display_loop_paused
-	LDA tetra_display_text_paused,Y
-	JSR tetra_display_char
-	INY
-	CPY #$06
-	BNE tetra_display_loop_paused
-tetra_pause_loop
-	JSR inputchar
-	JSR function_keys
-	CMP #$1B
-	BNE tetra_pause_loop
-tetra_pause_end
-	LDA #$19
-	STA printchar_x
-	LDA #$1C
-	STA printchar_y
-	LDA #" "
-	LDY #$06
-tetra_pause_clear
-	JSR tetra_display_char
-	DEY
-	BNE tetra_pause_clear
-	JMP tetra_refresh
-
-tetra_next
-	CLC
-	CMP #$60
-	BCC tetra_upper_skip
-	SEC
-	SBC #$20 ; lower convert to upper
-tetra_upper_skip
-	TAY
-	LDA #>tetra_refresh ; these are for the RTS in direction subroutines
-	PHA
-	LDA #<tetra_refresh
-	PHA
-	TYA
-	CMP #$17 ; joystick
-	BNE tetra_key_list
-	JMP tetra_buttons
-tetra_key_list
-	CMP #"W"
-	BEQ tetra_up
-	CMP #$11 ; arrow up
-	BEQ tetra_up
-	CMP #"S"
-	BEQ tetra_down
-	CMP #$12 ; arrow down
-	BEQ tetra_down
-	CMP #"A"
-	BEQ tetra_left
-	CMP #$13 ; arrow left
-	BEQ tetra_left
-	CMP #"D"
-	BEQ tetra_right
-	CMP #$14 ; arrow right
-	BEQ tetra_right
-	CMP #"Q"
-	BEQ tetra_rotate_ccw
-	CMP #$20 ; space
-	BEQ tetra_rotate_ccw
-	CMP #"E"
-	BEQ tetra_rotate_cw
-	CMP #"0"
-	BEQ tetra_rotate_cw
-tetra_none
-	PLA
-	PLA
-tetra_refresh
-	NOP ; this is needed for weird RTS setup
-	JSR tetra_draw
-	JMP tetra_loop
-
-tetra_up
-	LDX #$00
-	STZ clock_low
-	RTS
-tetra_down
-	LDX #$00
-	STZ clock_low
-	LDA tetra_location
-	CLC
-	ADC #$10
-	STA tetra_location
-	JSR tetra_clear
-	JSR tetra_place
-	CMP #$FF ; error
-	BEQ tetra_down_error
-	RTS
-tetra_rotate_ccw
-	LDA tetra_piece
-	TAY
-	PHA
-	AND #%00011100
-	STA tetra_piece
-	PLA
-	INC A
-	JMP tetra_rotate_both
-tetra_rotate_cw
-	LDA tetra_piece
-	TAY
-	PHA
-	AND #%00011100
-	STA tetra_piece
-	PLA
-	DEC A
-	JMP tetra_rotate_both
-tetra_left
-	DEC tetra_location
-	JSR tetra_clear
-	JSR tetra_place
-	CMP #$FF ; error
-	BEQ tetra_left_error
-	RTS
-tetra_right
-	INC tetra_location
-	JSR tetra_clear
-	JSR tetra_place
-	CMP #$FF ; error
-	BEQ tetra_right_error
-	RTS
-tetra_down_error
-	LDA tetra_location
-	SEC
-	SBC #$10
-	STA tetra_location
-	JSR tetra_clear
-	JSR tetra_place
-	JSR tetra_solid
-	JSR tetra_lines
-	JSR tetra_display
-	JSR tetra_draw
-	PLA
-	PLA
-	JMP tetra_start
-tetra_left_error
-	INC tetra_location
-	JSR tetra_clear
-	JSR tetra_place
-	RTS
-tetra_right_error
-	DEC tetra_location
-	JSR tetra_clear
-	JSR tetra_place
-	RTS
-tetra_rotate_both
-	AND #%00000011
-	ORA tetra_piece
-	STA tetra_piece
-	JSR tetra_clear
-	JSR tetra_place
-	CMP #$FF ; error
-	BEQ tetra_rotate_error
-	RTS
-tetra_rotate_error
-	STY tetra_piece
-	JSR tetra_clear
-	JSR tetra_place
-	RTS
-
-tetra_buttons
-	LDA joy_buttons
-	ROR A
-	BCS tetra_buttons_next1
-	PHA
-	JSR tetra_up
-	PLA
-tetra_buttons_next1
-	ROR A
-	BCS tetra_buttons_next2
-	PHA
-	JSR tetra_down
-	PLA
-tetra_buttons_next2
-	ROR A
-	BCS tetra_buttons_next3
-	PHA
-	JSR tetra_left
-	PLA
-tetra_buttons_next3
-	ROR A
-	BCS tetra_buttons_next4
-	PHA
-	JSR tetra_right
-	PLA
-tetra_buttons_next4
-	ROR A
-	BCS tetra_buttons_next5
-	PHA
-	LDA tetra_joy_prev
-	AND #%00010000
-	BEQ tetra_buttons_skip_cw
-	JSR tetra_rotate_cw
-tetra_buttons_skip_cw
-	PLA
-tetra_buttons_next5
-	ROR A
-	BCS tetra_buttons_next6
-	PHA
-	LDA tetra_joy_prev
-	AND #%00100000
-	BEQ tetra_buttons_skip_ccw
-	JSR tetra_rotate_ccw
-tetra_buttons_skip_ccw
-	PLA
-tetra_buttons_next6
-	LDA joy_buttons
-	STA tetra_joy_prev
-	RTS
-	
-
-tetra_clear
-	PHA
-	PHX
-	LDX #$00
-tetra_clear_loop
-	LDA tetra_field,X
-	CMP #$FF
-	BNE tetra_clear_increment
-	STZ tetra_field,X
-tetra_clear_increment
-	INX
-	BNE tetra_clear_loop
-	PLX
-	PLA
-	RTS
-
-tetra_place
-	STZ tetra_overscan
-	PHX
-	PHY
-	LDA tetra_piece
 	AND #%00011111
 	CLC
-	ROL A
-	ROL A
-	ROL A
-	ROL A
-	TAX
-	BCS tetra_place_second
-	TXA
-	SEC
-	SBC #$40 ; removes need for 'zero' placeholder data
-	TAX
-	LDA #<tetra_piece_data_first
-	STA sub_index+1
-	LDA #>tetra_piece_data_first
-	STA sub_index+2
-	JMP tetra_place_ready
-tetra_place_second
-	LDA #<tetra_piece_data_second
-	STA sub_index+1
-	LDA #>tetra_piece_data_second
-	STA sub_index+2
-tetra_place_ready
-	LDY tetra_location
-	STZ tetra_values+0
-	STZ tetra_values+1
-tetra_place_loop
-	JSR sub_index
-	CMP #$00 ; needed
-	BEQ tetra_place_skip
-	LDA tetra_overscan
-	BNE tetra_place_error
-	TYA
-	AND #%00001111
+	CMP #$1C
+	BCS rogue_walk_random
+	STA rogue_player_y
+	STA rogue_stairs_y
+	JMP rogue_walk_loop
+rogue_walk_direction
 	CLC
-	CMP #$03
-	BCC tetra_place_error
-	CLC
-	CMP #$0D
-	BCS tetra_place_error	
-	LDA tetra_field,Y
-	BEQ tetra_place_write
-tetra_place_error
-	PLY
-	PLX
-	LDA #$FF ; error
-	RTS
-tetra_place_write
-	JSR sub_index
-	STA tetra_field,Y
-tetra_place_skip
-	INX
-	INY
-	INC tetra_values+1
-	LDA tetra_values+1
-	CMP #$04
-	BNE tetra_place_loop
-	TYA
-	CLC
-	ADC #$0C
-	ROL tetra_overscan
-	TAY
-	STZ tetra_values+1
-	INC tetra_values+0
-	LDA tetra_values+0
-	CMP #$04
-	BNE tetra_place_loop
-	PLY
-	PLX
-	LDA #$00 ; good
-	RTS
-
-tetra_solid
-	PHA
-	PHX
-	LDX #$00
-tetra_solid_loop
-	LDA tetra_field,X
-	CMP #$FF
-	BNE tetra_solid_increment
-	LDA #tetra_color_fore
-	STA tetra_field,X
-tetra_solid_increment
-	INX
-	BNE tetra_solid_loop
-	LDA tetra_location
-	CLC
-	CMP #$0A
-	BCC tetra_gameover
-	PLX
-	PLA
-	RTS
-
-tetra_gameover
-	
-	LDA #$19
-	STA printchar_x
-	LDA #$1C
-	STA printchar_y	
-	LDY #$00
-tetra_display_loop_reset
-	LDA tetra_display_text_reset,Y
-	JSR tetra_display_char
-	INY
-	CPY #$06
-	BNE tetra_display_loop_reset
-
-	JSR tetra_input
+	JSR sub_random
+	AND #%00000011
+	BEQ rogue_walk_move_up
+	CMP #$01
+	BEQ rogue_walk_move_down
+	CMP #$02
+	BEQ rogue_walk_move_left	
+	BNE rogue_walk_move_right
+rogue_walk_move_up
+	LDA rogue_stairs_y
+	BEQ rogue_walk_direction
+	DEC rogue_stairs_y
+	JMP rogue_walk_loop
+rogue_walk_move_down
+	LDA rogue_stairs_y
+	CMP #$1B
+	BEQ rogue_walk_direction
+	INC rogue_stairs_y
+	JMP rogue_walk_loop
+rogue_walk_move_left
+	LDA rogue_stairs_x
 	CMP #$00
-	BEQ tetra_gameover
-	CMP #$17
-	BEQ tetra_gameover_buttons
-	JMP tetra_gameover_exit
-tetra_gameover_buttons
-	LDA tetra_joy_prev
-	CMP #$FF
-	BNE tetra_gameover
-tetra_gameover_exit
-	JMP tetra
-	
-tetra_input
-	LDA joy_buttons
-	CMP #$FF
-	BNE tetra_input_button
-	STA tetra_joy_prev
-	JMP tetra_input_key ; jump to tetra_input_none to skip keyboard
-tetra_input_button
-	LDA #$17 ; check joystick
-	JMP tetra_input_both
-tetra_input_key
-	JSR inputchar
-	JSR function_keys
-	CMP #$00 ; needed
-	BNE tetra_input_both
-tetra_input_none
-	LDA #$00
-tetra_input_both
-	RTS
-
-
-tetra_lines
-	STZ tetra_values+2
-	PHA
-	PHX
-	PHY
-	LDX #$00
-	LDY #$00
-tetra_lines_loop
-	LDA tetra_field,X
-	CMP #tetra_color_fore
-	BNE tetra_lines_check
-	INY
-tetra_lines_check
-	TXA
-	AND #%00001111
-	CMP #$0F
-	BNE tetra_lines_increment
-	CPY #$0A ; 10 columns
-	BEQ tetra_lines_remove
-	LDY #$00
-	JMP tetra_lines_increment
-tetra_lines_remove
-	INC tetra_values+2
-	INC tetra_score_low
-	LDA tetra_score_low
-	AND #%00001111
-	BNE tetra_lines_remove_score
-	LDA tetra_speed
-	SEC
-	SBC #$04 ; adjust as need be
-	STA tetra_speed
-	INC tetra_score_high
-tetra_lines_remove_score
-	TXA
-	AND #%11110000
-	TAX
-tetra_lines_remove_loop
-	STZ tetra_field,X
-	INX
-	TXA
-	AND #%00001111
-	CMP #$0F
-	BNE tetra_lines_remove_loop
-	PHX
-	TXA
-	SEC
-	SBC #$10
-	TAY
-tetra_lines_remove_shift
-	LDA tetra_field,Y
-	STA tetra_field,X
-	DEX
-	DEY
-	BNE tetra_lines_remove_shift
-	LDX #$00
-tetra_lines_remove_clear
-	STZ tetra_field,X
-	INX
-	TXA
-	AND #%00001111
-	CMP #$0F
-	BNE tetra_lines_remove_clear
-	PLX
-	LDY #$00
-tetra_lines_increment
-	INX
-	BNE tetra_lines_loop
-	LDA tetra_values+2
-	BEQ tetra_lines_exit
-	CMP #$04
-	BNE tetra_lines_exit
-	;LDA #$FF ; draw
-	;JSR easter_egg	
-tetra_lines_exit
-	PLY
-	PLX
-	PLA
-	RTS
-
-tetra_draw	
-	PHA
-	PHX
-	PHY
-	LDA #$08 ; start of playfield
-	STA sub_write+1
-	LDA #$08
-	STA sub_write+2
-	LDX #$00
-	LDY #$00
-tetra_draw_loop
-	TXA
-	AND #%00001111
-	CLC	
-	CMP #$03
-	BCC tetra_draw_jump
-	CLC	
-	CMP #$0D
-	BCS tetra_draw_jump
-	JMP tetra_draw_continue
-tetra_draw_jump
-	JMP tetra_draw_increment
-tetra_draw_continue
-	LDA tetra_field,X
-	CPY #$00
-	BNE tetra_draw_corner1
-	AND #tetra_color_fore
-	JMP tetra_draw_corner2
-tetra_draw_corner1
-	AND #tetra_color_fore
-tetra_draw_corner2
-	JSR sub_write
-	INC sub_write+1
-	LDA tetra_field,X
-	CPY #$00
-	BNE tetra_draw_normal
-	AND #tetra_color_fore
-tetra_draw_normal
-	PHX
-	LDX #$07 ; change this for width
-tetra_draw_normal_loop1
-	JSR sub_write
-	INC sub_write+1
-	DEX
-	BNE tetra_draw_normal_loop1
-	PLX
-	LDA sub_write+1
+	BEQ rogue_walk_direction
+	DEC rogue_stairs_x
+	JMP rogue_walk_loop
+rogue_walk_move_right
+	LDA rogue_stairs_x
+	CMP #$3F
+	BEQ rogue_walk_direction
+	INC rogue_stairs_x
+rogue_walk_loop
+	LDA rogue_stairs_y
+	AND #%00000011
 	CLC
-	ADC #$78 ; change this for width
-	STA sub_write+1
-	LDA tetra_field,X
-	AND #tetra_color_fore
-	JSR sub_write
-	INC sub_write+1
-	LDA tetra_field,X
-	CPY #$00
-	BNE tetra_draw_skip
-	AND #tetra_color_fore
-tetra_draw_skip
-	PHX
-	LDX #$07 ; change this for width
-tetra_draw_normal_loop2
-	JSR sub_write
-	INC sub_write+1
-	DEX
-	BNE tetra_draw_normal_loop2
-	PLX
-	LDA sub_write+1
+	ROR A
+	ROR A
+	ROR A
 	CLC
-	ADC #$78 ; change this for width
+	ADC rogue_stairs_x
+	STA sub_read+1
 	STA sub_write+1
-	INC sub_write+2
-	INY
-	CPY #$07 ; change this for height
-	BNE tetra_draw_loop
-	LDY #$00
-	LDA sub_write+2
-	SEC
-	SBC #$07 ; change this for height
-	STA sub_write+2
-	LDA sub_write+1
-	CLC
-	ADC #$08 ; change this for width
-	STA sub_write+1
-tetra_draw_increment
-	INX
-	BEQ tetra_draw_exit
-	TXA
-	AND #%00001111
-	BEQ tetra_draw_shift
-	JMP tetra_draw_loop
-tetra_draw_shift
-	LDA #$08 ; start of playfield
-	STA sub_write+1
-	LDA sub_write+2
-	CLC
-	ADC #$07 ; change this for height
-	STA sub_write+2
-	JMP tetra_draw_loop
-tetra_draw_exit
-	PLY
-	PLX
-	PLA
-	RTS
-
-tetra_display
-	PHX
-	PHA
-	LDA #$19
-	STA printchar_x
-	LDA #$01
-	STA printchar_y
-	LDX #$00
-tetra_display_loop_level
-	LDA tetra_display_text_level,X
-	JSR tetra_display_char
-	INX
-	CPX #$05
-	BNE tetra_display_loop_level
-	LDA #$19
-	STA printchar_x
-	LDA #$03
-	STA printchar_y
-	LDA tetra_score_high
-	JSR colornum
-	LDA #$19
-	STA printchar_x
-	LDA #$06
-	STA printchar_y
-	LDX #$00
-tetra_display_loop_lines
-	LDA tetra_display_text_lines,X
-	JSR tetra_display_char
-	INX
-	CPX #$05
-	BNE tetra_display_loop_lines
-	LDA #$19
-	STA printchar_x
-	LDA #$08
-	STA printchar_y
-	LDA tetra_score_low
-	JSR colornum
-	LDA #$19
-	STA printchar_x
-	LDA #$0B
-	STA printchar_y
-	LDX #$00
-tetra_display_loop_next
-	LDA tetra_display_text_next,X
-	JSR tetra_display_char
-	INX
-	CPX #$04
-	BNE tetra_display_loop_next
-	LDA tetra_piece_next
+	LDA rogue_stairs_y
 	AND #%00011100
 	CLC
 	ROR A
 	ROR A
-	CMP #$01 ; I
-	BNE tetra_display_next1
-	LDA #"I"
-	JMP tetra_display_exit
-tetra_display_next1
-	CMP #$02 ; J
-	BNE tetra_display_next2
-	LDA #"J"
-	JMP tetra_display_exit
-tetra_display_next2
-	CMP #$03 ; L
-	BNE tetra_display_next3
-	LDA #"L"
-	JMP tetra_display_exit
-tetra_display_next3
-	CMP #$04 ; O
-	BNE tetra_display_next4
-	LDA #"O"
-	JMP tetra_display_exit
-tetra_display_next4
-	CMP #$05 ; S
-	BNE tetra_display_next5
-	LDA #"S"
-	JMP tetra_display_exit
-tetra_display_next5
-	CMP #$06 ; T
-	BNE tetra_display_next6
-	LDA #"T"
-	JMP tetra_display_exit
-tetra_display_next6
-	CMP #$07 ; Z
-	BNE tetra_display_exit
-	LDA #"Z"
-	JMP tetra_display_exit
-tetra_display_exit
+	CLC
+	ADC #>rogue_floor
+	STA sub_read+2
+	STA sub_write+2
+	JSR sub_read
 	PHA
-	LDA #$19
-	STA printchar_x
-	LDA #$0D
-	STA printchar_y
+	LDA #$3A ; colon
+	JSR sub_write
 	PLA
-	JSR colorchar
+	CMP #$3A ; colon
+	BEQ rogue_walk_increment
+	INC rogue_walk_low
+	BNE rogue_walk_increment
+	INC rogue_walk_high
+	LDA rogue_walk_high
+	CLC
+	CMP #$02
+	BCS rogue_walk_exit
+rogue_walk_increment
+	JMP rogue_walk_direction
+rogue_walk_exit
+	LDA #$3C
+	JSR sub_write
 	PLA
+	RTS
+
+
+
+rogue_location
+	PHA
+	PHX
+	PHY
+	LDA #<rogue_location_data
+	STA sub_index+1
+	LDA #>rogue_location_data
+	STA sub_index+2
+	CLC
+	JSR sub_random
+	AND #%11000000
+	CLC
+	ADC sub_index+1
+	STA sub_index+1
+	BCC rogue_location_random
+	INC sub_index+2
+rogue_location_random
+	CLC
+	JSR sub_random
+	AND #%00111111
+	CLC
+	CMP #$38
+	BCS rogue_location_random
+	STA rogue_location_x
+	STA rogue_check_x
+	CLC
+	JSR sub_random
+	AND #%00011111
+	STA rogue_location_y
+	STA rogue_check_y
+	CLC
+	CMP #$14
+	BCS rogue_location_random
+	LDX #$00
+	LDY #$00
+rogue_location_player
+	LDA rogue_check_x
+	CMP rogue_player_x
+	BNE rogue_location_stairs
+	LDA rogue_check_y
+	CMP rogue_player_y
+	BNE rogue_location_stairs
+	JMP rogue_location_random
+rogue_location_stairs
+	LDA rogue_check_x
+	CMP rogue_stairs_x
+	BNE rogue_location_increment
+	LDA rogue_check_y
+	CMP rogue_stairs_y
+	BNE rogue_location_increment
+	JMP rogue_location_random
+rogue_location_increment
+	INC rogue_check_x
+	INX
+	INY
+	CPX #$40
+	BEQ rogue_location_ready
+	CPY #$08
+	BNE rogue_location_player
+	LDY #$00
+	LDA rogue_check_x
+	SEC
+	SBC #$08
+	STA rogue_check_x
+	INC rogue_check_y
+	JMP rogue_location_player
+rogue_location_ready
+	LDA rogue_location_x
+	STA rogue_check_x
+	LDA rogue_location_y
+	STA rogue_check_y
+	LDX #$00
+	LDY #$00
+rogue_location_loop
+	LDA rogue_check_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC rogue_check_x
+	STA sub_write+1
+	LDA rogue_check_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>rogue_floor
+	STA sub_write+2
+	JSR sub_index
+	JSR sub_write
+	INC rogue_check_x
+	INX
+	INY
+	CPX #$40
+	BEQ rogue_location_exit
+	CPY #$08
+	BNE rogue_location_loop
+	LDY #$00
+	LDA rogue_check_x
+	SEC
+	SBC #$08
+	STA rogue_check_x
+	INC rogue_check_y
+	JMP rogue_location_loop
+rogue_location_exit
+	PLY
 	PLX
-	RTS
-tetra_display_char
-	JSR colorchar
-	INC printchar_x
+	PLA
 	RTS
 
-tetra_display_text_level
-	.BYTE "Level"
 
-tetra_display_text_lines
-	.BYTE "Lines"
+rogue_location_data
+	.BYTE "---++---"
+	.BYTE $7C,"......",$7C
+	.BYTE $7C,"......",$7C
+	.BYTE $7C,"......",$7C
+	.BYTE $7C,"......",$7C
+	.BYTE $7C,"......",$7C
+	.BYTE $7C,"......",$7C
+	.BYTE "---++---"
 
-tetra_display_text_next
-	.BYTE "Next"
+	.BYTE "--------"
+	.BYTE $7C,"......",$7C
+	.BYTE $7C,"......",$7C
+	.BYTE "---++---"
+	.BYTE $7C,"......",$7C
+	.BYTE $7C,"......",$7C
+	.BYTE "+......+"
+	.BYTE "--------"
 
-tetra_display_text_paused
-	.BYTE "Paused"
+	.BYTE "^^....^^"
+	.BYTE "^......^"
+	.BYTE "........"
+	.BYTE "...^^..."
+	.BYTE "...^^..."
+	.BYTE "........"
+	.BYTE "^......^"
+	.BYTE "^^....^^"
 
-tetra_display_text_reset
-	.BYTE "Reset?"
+	.BYTE $3A,$3A,$3A,"..",$3A,$3A,$3A
+	.BYTE $3A,$3A,"0..0",$3A,$3A
+	.BYTE $3A,"0....0",$3A
+	.BYTE "........"
+	.BYTE "........"
+	.BYTE $3A,"0....0",$3A
+	.BYTE $3A,$3A,"0..0",$3A,$3A
+	.BYTE $3A,$3A,$3A,"..",$3A,$3A,$3A
 
 
-tetra_piece_data_first
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
-;	.BYTE $00,$00,$00,$00
+rogue_display
+	PHA
+	PHX
+	LDX #$00
+	LDA #<rogue_floor
+	STA sub_read+1
+	LDA #>rogue_floor
+	STA sub_read+2
+	LDA #<rogue_visible
+	STA sub_index+1
+	LDA #>rogue_visible
+	STA sub_index+2
+	STZ printchar_x
+	STZ printchar_y
+rogue_display_loop
+	LDA printchar_x
+	CMP rogue_player_x
+	BNE rogue_display_floor
+	LDA printchar_y
+	CMP rogue_player_y
+	BNE rogue_display_floor
+	LDA #"@"
+	JSR printchar
+	JMP rogue_display_increment
+rogue_display_floor
+	JSR sub_index
+	STA rogue_filter
+	JSR sub_read
+	AND rogue_filter
+	JSR printchar
+rogue_display_increment
+	INC sub_read+1
+	INC sub_index+1
+	BNE rogue_display_loop
+	INC sub_read+2
+	INC sub_index+2
+	LDA sub_index+2
+	CMP #>rogue_map_stop
+	BNE rogue_display_loop
+	PLX
+	PLA
+	RTS
+	
+	
+rogue_controls
+	CLC
+	JSR sub_random ; for more randomization
+	JSR inputchar
+	CMP #$00
+	BEQ rogue_controls
+	PHA
 
-	.BYTE $00,$00,$00,$00
-	.BYTE $FF,$FF,$FF,$FF
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$00,$00,$00
+	LDA rogue_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC rogue_player_x
+	STA sub_read+1
+	LDA rogue_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>rogue_floor
+	STA sub_read+2
+	
+	LDA rogue_player_x
+	STA rogue_check_x
+	STA printchar_x
+	LDA rogue_player_y
+	STA rogue_check_y
+	STA printchar_y
+	JSR sub_read
+	JSR printchar
+	
+	PLA
+	CMP #$11 ; arrow up
+	BEQ rogue_controls_up
+	CMP #$12 ; arrow down
+	BEQ rogue_controls_down
+	CMP #$13 ; arrow left
+	BEQ rogue_controls_left
+	CMP #$14 ; arrow right
+	BEQ rogue_controls_right
+	; put more here
+	JMP rogue_controls_move
+rogue_controls_up
+	LDA rogue_player_y
+	BEQ rogue_controls_move
+	DEC rogue_player_y
+	JMP rogue_controls_move
+rogue_controls_down
+	LDA rogue_player_y
+	CMP #$1B
+	BEQ rogue_controls_move
+	INC rogue_player_y
+	JMP rogue_controls_move
+rogue_controls_left
+	LDA rogue_player_x
+	BEQ rogue_controls_move
+	DEC rogue_player_x
+	JMP rogue_controls_move
+rogue_controls_right
+	LDA rogue_player_x
+	CMP #$3F
+	BEQ rogue_controls_move
+	INC rogue_player_x
+	JMP rogue_controls_move
+; put more here
+rogue_controls_move
 
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
+	LDA rogue_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC rogue_player_x
+	STA sub_read+1
+	LDA rogue_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>rogue_floor
+	STA sub_read+2
+	JSR sub_read
+	CMP #$3C ; less than
+	BEQ rogue_controls_descend
+	CMP #$3A ; colon
+	BEQ rogue_controls_redraw
+	CMP #"."
+	BEQ rogue_controls_redraw
+	CMP #"+"
+	BEQ rogue_controls_redraw
+	CMP #"#"
+	BEQ rogue_controls_dig
+	
+rogue_controls_bounds
+	LDA rogue_check_x
+	STA rogue_player_x
+	LDA rogue_check_y
+	STA rogue_player_y
 
-	.BYTE $00,$00,$00,$00
-	.BYTE $FF,$FF,$FF,$FF
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$00,$00,$00
+rogue_controls_redraw
+	JSR rogue_light
+	LDA rogue_player_x
+	STA printchar_x
+	LDA rogue_player_y
+	STA printchar_y
+	LDA #"@"
+	JSR printchar
+	JMP rogue_controls
+rogue_controls_descend
+	JMP rogue_reset
+rogue_controls_dig
+	LDA rogue_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC rogue_player_x
+	STA sub_read+1
+	STA sub_write+1
+	LDA rogue_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>rogue_digged
+	STA sub_read+2
+	STA sub_write+2
+	JSR sub_read
+	SEC
+	SBC rogue_pickaxe
+	JSR sub_write
+	BEQ rogue_controls_hole
+	CLC
+	CMP #$80
+	BCS rogue_controls_hole
+	JMP rogue_controls_bounds
+rogue_controls_hole
+	LDA #$00
+	JSR sub_write
+	LDA rogue_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC rogue_player_x
+	STA sub_write+1
+	LDA rogue_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>rogue_floor
+	STA sub_write+2
+	LDA #$3A ; colon
+	JSR sub_write
+	LDA rogue_player_x
+	STA printchar_x
+	LDA rogue_player_y
+	STA printchar_y
+	LDA #$3A ; colon
+	JSR printchar
+	JMP rogue_controls_bounds
 
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$FF
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$FF,$00
-	.BYTE $00,$00,$FF,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $FF,$FF,$FF,$00
-	.BYTE $00,$00,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$FF
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$00,$FF,$00
-	.BYTE $FF,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$FF,$00
-	.BYTE $00,$00,$FF,$00
-
-tetra_piece_data_second
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $FF,$FF,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $FF,$FF,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $FF,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $FF,$FF,$00,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $FF,$FF,$FF,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$FF,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $FF,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $FF,$FF,$00,$00
-	.BYTE $FF,$00,$00,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$00,$00,$00
-	.BYTE $FF,$FF,$00,$00
-	.BYTE $00,$FF,$FF,$00
-	.BYTE $00,$00,$00,$00
-
-	.BYTE $00,$FF,$00,$00
-	.BYTE $FF,$FF,$00,$00
-	.BYTE $FF,$00,$00,$00
-	.BYTE $00,$00,$00,$00
 	
 
-colorchar ; 32-column characters in 16-color mode
-	PHA
-	PHX
-	PHY
-	PHA
-	LDA printchar_x
-	CLC
-	ROL A
-	CLC
-	ROL A
-	STA printchar_write+1
-	LDA printchar_y
-	CLC
-	ROL A
-	CLC
-	ROL A
-	CLC
-	ADC #$08
-	STA printchar_write+2
-	PLA
-	SEC
-	SBC #$20
-	TAX
-	LDA #<key_bitmap
-	STA printchar_read+1
-	LDA #>key_bitmap
-	STA printchar_read+2
-colorchar_lookup
-	CPX #$00
-	BEQ colorchar_found
-	DEX
-	LDA printchar_read+1
-	CLC
-	ADC #$10
-	STA printchar_read+1
-	BNE colorchar_lookup
-	INC printchar_read+2
-	JMP colorchar_lookup
-colorchar_found
-	LDX #$00
-colorchar_loop
-	JSR colorchar_move
-	INC printchar_read+1
-	INX
-	JSR colorchar_move
-	INC printchar_read+1
-	LDA printchar_write+1
-	CLC
-	ADC #$7C
-	STA printchar_write+1
-	BCC colorchar_increment
-	INC printchar_write+2
-colorchar_increment
-	INX
-	CPX #$10
-	BNE colorchar_loop
-	PLY	
-	PLX
-	PLA
-	RTS
-colorchar_move ; subroutine
-	LDA #%10000000
-	STA colorchar_input
-colorchar_move_start
-	STZ printchar_storage	
-	LDA #%11000000
-	STA colorchar_output
-	LDY #$04
-colorchar_move_loop
-	JSR printchar_read
-	AND colorchar_input
-	BEQ colorchar_move_skip
-	LDA printchar_storage
-	ORA colorchar_output
-	STA printchar_storage
-colorchar_move_skip
-	CLC
-	ROR colorchar_input
-	CLC
-	ROR colorchar_output
-	CLC
-	ROR colorchar_output
-	DEY
-	BNE colorchar_move_loop
-	LDA printchar_storage
-	JSR printchar_write
-	INC printchar_write+1
-	LDA colorchar_input
-	BNE colorchar_move_start
+rogue_light
 	RTS
 
-colornum ; converts hex to decimal value
-	PHY
-	PHX
-	PHA
-	LDX #$00
-colornum_100_count
-	TAY
-	SEC
-	SBC #$64 ; 100 in hex
-	INX
-	BCS colornum_100_count
-	DEX
-	TXA
-	CMP #$00
-	BEQ colornum_100_skip
-	CLC
-	ADC #"0"
-	JSR colorchar
-colornum_100_skip
-	INC printchar_x
-	TYA
-	LDX #$00
-colornum_10_count
-	TAY
-	SEC
-	SBC #$0A ; 10 in hex
-	INX
-	BCS colornum_10_count
-	DEX
-	TXA
-;	CMP #$00
-;	BEQ colornum_10_skip
-	CLC
-	ADC #"0"
-	JSR colorchar
-colornum_10_skip
-	INC printchar_x
-	TYA
-	CLC
-	ADC #"0"
-	JSR colorchar
-	INC printchar_x
-	PLA
-	PLX
-	PLY
-	RTS
+
+
+
 
 
 
@@ -5814,107 +2516,6 @@ basic_mod_store
 
 
 
-
-scratchpad
-	LDA #$E1 ; produces greyscale
-	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
-
-	LDA #"*"
-	STA scratchpad_lastchar
-
-	LDA #$10 ; cursor
-	JSR printchar
-
-scratchpad_loop
-	CLC
-	JSR sub_random ; helps randomize
-
-	JSR scratchpad_mouse
-
-	JSR inputchar
-	CMP #$00
-	BEQ scratchpad_loop
-
-	PHA
-	LDA #$10 ; cursor
-	JSR printchar
-	PLA
-
-	JSR function_keys
-	CMP #$1B ; escape
-	BEQ scratchpad_escape
-
-	STA scratchpad_lastchar
-	JSR printchar ; print actual character
-	LDA #$10 ; cursor
-	JSR printchar
-	JMP scratchpad_loop
-
-scratchpad_escape
-	LDA #$0C ; form feed
-	JSR printchar
-	LDA #$10 ; cursor
-	JSR printchar
-	JMP scratchpad_loop
-
-scratchpad_mouse
-	PHA
-	LDA mouse_buttons
-	AND #%00001111
-	CMP mouse_prev_buttons
-	BNE scratchpad_mouse_draw
-	LDA mouse_prev_x
-	CMP mouse_pos_x
-	BNE scratchpad_mouse_draw
-	LDA mouse_prev_y
-	CMP mouse_pos_y
-	BNE scratchpad_mouse_draw
-	JMP scratchpad_mouse_exit
-scratchpad_mouse_draw
-	LDA #$10
-	JSR printchar
-	LDA mouse_pos_x
-	STA mouse_prev_x
-	AND #%11111100
-	CLC
-	ROR A
-	ROR A
-	STA printchar_x
-	LDA mouse_pos_y
-	STA mouse_prev_y
-	EOR #$FF
-	INC A
-	AND #%11111000
-	CLC
-	ROR A
-	ROR A
-	ROR A
-	STA printchar_y
-	LDA mouse_buttons
-	AND #%00001111
-	STA mouse_prev_buttons
-	AND #%00000001
-	BEQ scratchpad_mouse_space
-	LDA scratchpad_lastchar
-	JSR printchar
-	LDA #$08 ; backspace
-	JSR printchar
-	JMP scratchpad_mouse_cursor
-scratchpad_mouse_space
-	LDA mouse_buttons
-	AND #%00000010
-	BEQ scratchpad_mouse_cursor
-	LDA #" "
-	JSR printchar
-	LDA #$08 ; backspace
-	JSR printchar
-scratchpad_mouse_cursor
-	LDA #$10
-	JSR printchar
-scratchpad_mouse_exit
-	PLA
-	RTS
-
 monitor
 	LDA #$E1 ; produces greyscale
 	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
@@ -6461,6 +3062,123 @@ monitor_single ; subroutine
 
 
 
+
+scratchpad
+	LDA #$E1 ; produces greyscale
+	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
+
+	LDA #"*"
+	STA scratchpad_lastchar
+
+	LDA #$10 ; cursor
+	JSR printchar
+
+scratchpad_loop
+	CLC
+	JSR sub_random ; helps randomize
+
+	JSR scratchpad_joy
+
+	JSR scratchpad_mouse
+
+	JSR inputchar
+	CMP #$00
+	BEQ scratchpad_loop
+
+	PHA
+	LDA #$10 ; cursor
+	JSR printchar
+	PLA
+
+	JSR function_keys
+	CMP #$1B ; escape
+	BEQ scratchpad_escape
+
+	STA scratchpad_lastchar
+	JSR printchar ; print actual character
+	LDA #$10 ; cursor
+	JSR printchar
+	JMP scratchpad_loop
+
+scratchpad_escape
+	LDA #$0C ; form feed
+	JSR printchar
+	LDA #$10 ; cursor
+	JSR printchar
+	JMP scratchpad_loop
+
+scratchpad_joy
+	PHA
+	LDA joy_buttons
+	AND #%00110000
+	CMP #%00110000
+	BEQ scratchpad_joy_exit
+	PLA
+	JMP bank_switch
+scratchpad_joy_exit
+	PLA
+	RTS
+
+scratchpad_mouse
+	PHA
+	LDA mouse_buttons
+	AND #%00001111
+	CMP mouse_prev_buttons
+	BNE scratchpad_mouse_draw
+	LDA mouse_prev_x
+	CMP mouse_pos_x
+	BNE scratchpad_mouse_draw
+	LDA mouse_prev_y
+	CMP mouse_pos_y
+	BNE scratchpad_mouse_draw
+	JMP scratchpad_mouse_exit
+scratchpad_mouse_draw
+	LDA #$10
+	JSR printchar
+	LDA mouse_pos_x
+	STA mouse_prev_x
+	AND #%11111100
+	CLC
+	ROR A
+	ROR A
+	STA printchar_x
+	LDA mouse_pos_y
+	STA mouse_prev_y
+	EOR #$FF
+	INC A
+	AND #%11111000
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	STA printchar_y
+	LDA mouse_buttons
+	AND #%00001111
+	STA mouse_prev_buttons
+	AND #%00000001
+	BEQ scratchpad_mouse_space
+	LDA scratchpad_lastchar
+	JSR printchar
+	LDA #$08 ; backspace
+	JSR printchar
+	JMP scratchpad_mouse_cursor
+scratchpad_mouse_space
+	LDA mouse_buttons
+	AND #%00000010
+	BEQ scratchpad_mouse_cursor
+	LDA #" "
+	JSR printchar
+	LDA #$08 ; backspace
+	JSR printchar
+scratchpad_mouse_cursor
+	LDA #$10
+	JSR printchar
+scratchpad_mouse_exit
+	PLA
+	RTS
+
+
+
 intro
 	LDX #$00
 intro_loop
@@ -6480,10 +3198,9 @@ intro_text
 	.BYTE "ch, F2=M"
 	.BYTE "on, F3=B"
 	.BYTE "ASIC, F4"
-	.BYTE "-F6=Game"
-	.BYTE "s, F9=SD"
-	.BYTE "card, F1"
-	.BYTE "0=Bank",$0D
+	.BYTE "=Games, "
+	.BYTE "F9=SDcar"
+	.BYTE "d",$0D
 	.BYTE $00	
 
 
@@ -6502,10 +3219,10 @@ menu_exit
 	RTS
 menu_text
 	.BYTE "ESC=Brea"
-	.BYTE "k, F8=<S"
-	.BYTE "ave/Load"
-	.BYTE ">, F12=H"
-	.BYTE "elp",$0D
+	.BYTE "k, F10=<"
+	.BYTE "Save/Loa"
+	.BYTE "d>, F12="
+	.BYTE "Help",$0D
 	.BYTE $00
 
 
@@ -6662,105 +3379,6 @@ help_print_hex_number
 	RTS
 
 
-
-setup
-	STZ printchar_inverse ; turn off inverse
-	LDA #$FF ; white 
-	STA printchar_foreground
-	LDA #$00 ; black
-	STA printchar_background
-
-	LDA #$AD ; LDAa
-	STA sub_read+0
-	STA printchar_read+0
-	LDA #$60 ; RTS
-	STA sub_read+3
-	STA printchar_read+3
-
-	LDA #$BD ; LDAax
-	STA sub_index+0
-	LDA #$60 ; RTS
-	STA sub_index+3
-
-	LDA #$8D ; STAa
-	STA sub_write+0
-	STA printchar_write+0
-	LDA #$60 ; RTS
-	STA sub_write+3
-	STA printchar_write+3
-
-	LDA #$4C ; JMPa
-	STA sub_jump+0
-
-	LDA #$4C ; JMPa
-	STA sub_inputchar+0
-	LDA #<inputchar
-	STA sub_inputchar+1
-	LDA #>inputchar
-	STA sub_inputchar+2
-
-	LDA #$4C ; JMPa
-	STA sub_printchar+0
-	LDA #<printchar
-	STA sub_printchar+1
-	LDA #>printchar
-	STA sub_printchar+2
-
-	LDA #$4C ; JMPa
-	STA sub_sdcard_initialize+0
-	LDA #<sdcard_initialize
-	STA sub_sdcard_initialize+1
-	LDA #>sdcard_initialize
-	STA sub_sdcard_initialize+2
-
-	LDA #$4C ; JMPa
-	STA sub_sdcard_readblock+0
-	LDA #<sdcard_readblock
-	STA sub_sdcard_readblock+1
-	LDA #>sdcard_readblock
-	STA sub_sdcard_readblock+2
-
-	LDA #$4C ; JMPa
-	STA sub_sdcard_writeblock+0
-	LDA #<sdcard_writeblock
-	STA sub_sdcard_writeblock+1
-	LDA #>sdcard_writeblock
-	STA sub_sdcard_writeblock+2
-
-	STZ sub_random_var
-
-;	LDX #$10
-;setup_random_loop
-;	LDA setup_random_code,X
-;	STA sub_random,X
-;	DEX
-;	CPX #$FF
-;	BNE setup_random_loop
-
-	LDA #$AD ; LDAa
-	STA sub_random+0
-	LDA #<via+$08
-	STA sub_random+1
-	LDA #>via+$08
-	STA sub_random+2
-	LDA #$60 ; RTS
-	STA sub_random+3
-
-	JSR basic_clear
-
-	RTS
-
-;setup_random_code
-;	.BYTE $AD
-;	.WORD sub_random_var
-;	.BYTE $2A,$18,$2A,$18,$6D
-;	.WORD sub_random_var
-;	.BYTE $18,$69,$11,$8D
-;	.WORD sub_random_var
-;	.BYTE $60
-
-
-
 function_keys
 	CMP #$1C ; F1, scratchpad
 	BNE function_keys_next1
@@ -6796,16 +3414,24 @@ function_keys_next2
 	PLA
 	JMP basic
 function_keys_next3
-	CMP #$1F ; F4, tetra
+	CMP #$1F ; F4, games on other bank
 	BNE function_keys_next4
 	LDA #$02
 	STA function_mode
 	PLA
 	PLA
-	JMP tetra
+	JMP bank_switch
 function_keys_next4
-	CMP #$16 ; F9, sdcard_bootloader
+	CMP #$0E ; F5, rogue
 	BNE function_keys_next5
+	LDA #$02
+	STA function_mode
+	PLA
+	PLA
+	JMP rogue
+function_keys_next5
+	CMP #$16 ; F9, sdcard_bootloader
+	BNE function_keys_next6
 	LDA function_mode
 	CMP #$FF
 	BNE function_keys_exit
@@ -6814,25 +3440,9 @@ function_keys_next4
 	BNE function_keys_exit ; successful exit
 	BEQ function_keys_exit ; error	
 	;JMP vector_reset ; error exit
-function_keys_next5
-	CMP #$0E ; F5, intruder
-	BNE function_keys_next6
-	LDA #$03
-	STA function_mode
-	PLA
-	PLA
-	JMP intruder
 function_keys_next6
-	CMP #$0F ; F6, defense
+	CMP #$18 ; F10, save/load (or bell)
 	BNE function_keys_next7
-	LDA #$04
-	STA function_mode
-	PLA
-	PLA
-	JMP defense
-function_keys_next7
-	CMP #$07 ; F8, save/load (or bell)
-	BNE function_keys_next8
 	LDA function_mode
 	CLC
 	CMP #$02
@@ -6850,13 +3460,7 @@ function_keys_wait
 	CMP #">"
 	BEQ function_keys_saveload_load
 	BNE function_keys_exit
-function_keys_next8
-	CMP #$18 ; F10, bank switch
-	BNE function_keys_next9
-	PLA
-	PLA
-	JMP bank_switch
-function_keys_next9
+function_keys_next7
 	RTS
 function_keys_exit
 	LDA #$00
@@ -6879,88 +3483,6 @@ function_keys_saveload_error
 	BNE function_keys_exit ; error	
 
 
-
-; loads first 512 bytes on SDcard into $0500-$06FF and then executes starting at $0500
-sdcard_bootloader
-	LDA #$00 ; low addr
-	STA sdcard_block+0
-	LDA #$05 ; high addr
-	STA sdcard_block+1
-	PHX
-	PHY
-	JSR sdcard_initialize
-	CMP #$00
-	BEQ sdcard_bootloader_error
-	LDY #$00 ; high addr
-	LDX #$40 ; low addr
-	JSR sdcard_readblock
-	CMP #$00
-	BEQ sdcard_bootloader_error
-	LDA sdcard_block+0
-	STA sub_jump+1
-	LDA sdcard_block+1
-	STA sub_jump+2
-	JSR sub_jump ; start executing at top of sdcard memory, using JSR in hopes of coming back here
-	PLY
-	PLX
-	LDA #$01 ; returns $01 for success
-	RTS
-sdcard_bootloader_error
-	PLY
-	PLX
-	LDA #$00 ; returns $00 for error
-	RTS
-
-
-; A = $00 to write, A = $01 to read, returns $FF on success
-sdcard_saveload
-	PHX
-	PHA
-	LDA #$00
-	STA sdcard_block+0
-	LDA #$80
-	STA sdcard_block+1
-	LDX #$00
-	LDY #$00
-	JSR sdcard_initialize
-	CMP #00
-	BEQ sdcard_saveload_exit
-sdcard_saveload_loop
-	JSR inputchar
-	CMP #$1B
-	BEQ sdcard_saveload_exit
-	PLA
-	BEQ sdcard_saveload_write
-	PHA
-	JSR sdcard_readblock
-	JMP sdcard_saveload_done
-sdcard_saveload_write
-	PHA
-	JSR sdcard_writeblock
-sdcard_saveload_done
-	CMP #$00
-	BEQ sdcard_saveload_exit
-	INC sdcard_block+1
-	INC sdcard_block+1
-	INX
-	INX
-	CPX #$40
-	BNE sdcard_saveload_loop
-	PLA
-	LDA #$FF ; success
-	PHA
-sdcard_saveload_exit
-	PLA
-	PLX
-	RTS
-
-
-
-; unused space here
-
-
-
-	.ORG $F200 ; most important things below including sdcard, inputchar, printchar, and interrupts
 
 
 sdcard_sendbyte ; already in A
@@ -7262,120 +3784,129 @@ sdcard_writeblock_increment
 	RTS
 
 
-longdelay
-	PHA
+; loads first 512 bytes on SDcard into $0500-$06FF and then executes starting at $0500
+sdcard_bootloader
+	LDA #$00 ; low addr
+	STA sdcard_block+0
+	LDA #$05 ; high addr
+	STA sdcard_block+1
 	PHX
 	PHY
-	LDA #$FF ; arbitrary values
-	LDX #$80
-	LDY #$01
-longdelay_loop
-	DEC A
-	BNE longdelay_loop
-	DEX
-	BNE longdelay_loop
-	DEY
-	BNE longdelay_loop
+	JSR sdcard_initialize
+	CMP #$00
+	BEQ sdcard_bootloader_error
+	LDY #$00 ; high addr
+	LDX #$40 ; low addr
+	JSR sdcard_readblock
+	CMP #$00
+	BEQ sdcard_bootloader_error
+	LDA sdcard_block+0
+	STA sub_jump+1
+	LDA sdcard_block+1
+	STA sub_jump+2
+	JSR sub_jump ; start executing at top of sdcard memory, using JSR in hopes of coming back here
 	PLY
 	PLX
+	LDA #$01 ; returns $01 for success
+	RTS
+sdcard_bootloader_error
+	PLY
+	PLX
+	LDA #$00 ; returns $00 for error
+	RTS
+
+
+; A = $00 to write, A = $01 to read, returns $FF on success
+sdcard_saveload
+	PHX
+	PHA
+	LDA #$00
+	STA sdcard_block+0
+	LDA #$80
+	STA sdcard_block+1
+	LDX #$00
+	LDY #$00
+	JSR sdcard_initialize
+	CMP #00
+	BEQ sdcard_saveload_exit
+sdcard_saveload_loop
+	JSR inputchar
+	CMP #$1B
+	BEQ sdcard_saveload_exit
+	PLA
+	BEQ sdcard_saveload_write
+	PHA
+	JSR sdcard_readblock
+	JMP sdcard_saveload_done
+sdcard_saveload_write
+	PHA
+	JSR sdcard_writeblock
+sdcard_saveload_done
+	CMP #$00
+	BEQ sdcard_saveload_exit
+	INC sdcard_block+1
+	INC sdcard_block+1
+	INX
+	INX
+	CPX #$40
+	BNE sdcard_saveload_loop
+	PLA
+	LDA #$FF ; success
+	PHA
+sdcard_saveload_exit
+	PLA
+	PLX
+	RTS
+
+spi_enable
+	PHA
+	LDA via_pb
+	AND #spi_cs_inv
+	STA via_pb
 	PLA
 	RTS
 
-
-
-inputchar
-	PHY
-	PHX
-	LDA #$00
-	LDX key_read
-	CPX key_write
-	BEQ inputchar_exit
-	LDA key_read
-	INC A
-	STA key_read
-	CMP #$80
-	BNE inputchar_success
-	STZ key_read
-inputchar_success
-	LDA key_array,X
-	CMP #$F0 ; release
-	BEQ inputchar_release
-	CMP #$E0 ; extended
-	BEQ inputchar_extended
-	CLC
-	CMP #$80
-	BCS inputchar_error
-	CMP #ps2_shift_left
-	BEQ inputchar_shift
-	CMP #ps2_shift_right
-	BEQ inputchar_shift
-	CMP #ps2_capslock
-	BEQ inputchar_capslock
-	CMP #ps2_alt
-	BEQ inputchar_altcontrol
-	CMP #ps2_control
-	BEQ inputchar_altcontrol
-	LDY key_release
-	CPY #$00
-	BNE inputchar_ignore
-	CMP #ps2_slash
-	BNE inputchar_continue
-	LDY key_extended
-	CPY #$00
-	BNE inputchar_skip
-inputchar_continue
-	CLC
-	ADC key_extended
-	STZ key_extended
-	CLC
-	ADC key_shift
-	CLC
-	ADC key_capslock
-inputchar_skip
-	TAX
-	LDA key_conversion,X
-	JMP inputchar_exit
-inputchar_error
-	LDA #$00
-inputchar_exit
-	PLX
-	PLY
+spi_disable
+	PHA
+	LDA via_pb
+	ORA #spi_cs
+	STA via_pb
+	PLA
 	RTS
-inputchar_release
-	LDA #$80
-	STA key_release
-	LDA #$00
-	JMP inputchar_exit
-inputchar_extended
-	LDA #$80
-	STA key_extended
-	LDA #$00
-	JMP inputchar_exit
-inputchar_shift
-	LDA key_release
+
+spi_output_low
+	PHA
+	LDA via_pb
+	AND #spi_mosi_inv
+	STA via_pb
+	PLA
+	RTS
+
+spi_output_high
+	PHA
+	LDA via_pb
+	ORA #spi_mosi
+	STA via_pb
+	PLA
+	RTS
+
+spi_input ; results in $00 or $80
+	LDA via_pb
+	AND #spi_miso
 	CLC
-	ADC #$80
-	STA key_shift
-	JMP inputchar_ignore
-inputchar_capslock
-	LDA key_release
-	BNE inputchar_ignore
-	LDA key_capslock
-	CLC
-	ADC #$80
-	STA key_capslock
-	JMP inputchar_ignore
-inputchar_altcontrol
-	LDA key_release
-	CLC
-	ADC #$80
-	STA key_alt_control
-	JMP inputchar_ignore
-inputchar_ignore
-	STZ key_release
-	STZ key_extended
-	LDA #$00
-	JMP inputchar_exit
+	ROL A
+	RTS
+
+spi_toggle
+	PHA
+	LDA via_pb
+	ORA #spi_clk
+	STA via_pb
+	; delay here?
+	AND #spi_clk_inv
+	STA via_pb
+	PLA
+	RTS
 
 
 printchar
@@ -7641,6 +4172,196 @@ printchar_clearscreen_loop
 	JMP printchar_exit
 
 
+setup
+	JSR int_init
+	JSR via_init
+	JSR joy_init
+
+	STZ printchar_inverse ; turn off inverse
+	LDA #$FF ; white 
+	STA printchar_foreground
+	LDA #$00 ; black
+	STA printchar_background
+
+	LDA #$AD ; LDAa
+	STA sub_read+0
+	STA printchar_read+0
+	LDA #$60 ; RTS
+	STA sub_read+3
+	STA printchar_read+3
+
+	LDA #$BD ; LDAax
+	STA sub_index+0
+	LDA #$60 ; RTS
+	STA sub_index+3
+
+	LDA #$8D ; STAa
+	STA sub_write+0
+	STA printchar_write+0
+	LDA #$60 ; RTS
+	STA sub_write+3
+	STA printchar_write+3
+
+	LDA #$4C ; JMPa
+	STA sub_jump+0
+
+	LDA #$4C ; JMPa
+	STA sub_inputchar+0
+	LDA #<inputchar
+	STA sub_inputchar+1
+	LDA #>inputchar
+	STA sub_inputchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_printchar+0
+	LDA #<printchar
+	STA sub_printchar+1
+	LDA #>printchar
+	STA sub_printchar+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_initialize+0
+	LDA #<sdcard_initialize
+	STA sub_sdcard_initialize+1
+	LDA #>sdcard_initialize
+	STA sub_sdcard_initialize+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_readblock+0
+	LDA #<sdcard_readblock
+	STA sub_sdcard_readblock+1
+	LDA #>sdcard_readblock
+	STA sub_sdcard_readblock+2
+
+	LDA #$4C ; JMPa
+	STA sub_sdcard_writeblock+0
+	LDA #<sdcard_writeblock
+	STA sub_sdcard_writeblock+1
+	LDA #>sdcard_writeblock
+	STA sub_sdcard_writeblock+2
+
+	STZ sub_random_var
+
+; uses A = A * 3 + 17 + T2rand
+	LDX #$12
+setup_random_loop
+	LDA setup_random_code,X
+	STA sub_random,X
+	DEX
+	CPX #$FF
+	BNE setup_random_loop
+
+; just takes T2rand
+;	LDA #$AD ; LDAa
+;	STA sub_random+0
+;	LDA #<via+$08
+;	STA sub_random+1
+;	LDA #>via+$08
+;	STA sub_random+2
+;	LDA #$60 ; RTS
+;	STA sub_random+3
+
+	JSR basic_clear
+
+	RTS
+
+
+; LDA sub_random_var
+; ROL A
+; CLC
+; ADC sub_random_var ; multiply by 3
+; CLC
+; ADC #$11 ; add 17
+; ADC via+$08 ; add random value
+; STA sub_random_var
+; RTS
+setup_random_code
+	.BYTE $AD
+	.WORD sub_random_var
+	.BYTE $2A,$18,$6D
+	.WORD sub_random_var
+	.BYTE $18,$69,$11,$6D
+	.WORD via+$08
+	.BYTE $8D
+	.WORD sub_random_var
+	.BYTE $60
+
+
+
+int_init
+	LDA #$4C ; JMPa
+	STA vector_irq+0
+	LDA #<key_isr
+	STA vector_irq+1
+	LDA #>key_isr
+	STA vector_irq+2
+
+	LDA #$4C ; JMPa
+	STA vector_nmi+0
+	LDA #<joy_isr
+	STA vector_nmi+1
+	LDA #>joy_isr
+	STA vector_nmi+2
+	
+	RTS
+
+via_init
+	LDA #%10111111 ; PB is mostly output
+	STA via_db
+	STZ via_pb ; set output pins to low
+	STZ via_da ; PA is all input
+	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
+	STA via_pcr
+	LDA #%10000011 ; interrupts on CA1 and CA2
+	STA via_ier
+
+	STZ key_write
+	STZ key_read
+	;STZ key_data
+	STZ key_counter
+	STZ key_release
+	STZ key_extended
+	STZ key_shift
+	STZ key_capslock
+	STZ key_alt_control
+
+	LDA #$80
+	STA mouse_pos_x
+	STA mouse_pos_y
+	STA mouse_prev_x
+	STA mouse_prev_y
+	STZ mouse_buttons
+	STZ mouse_prev_buttons
+	;STZ mouse_data
+	STZ mouse_counter
+	STZ mouse_state
+
+	LDA #%11010000 ; free run on T1 for audio
+	STA via_acr
+	
+	STZ via_t1cl ; zero out T1 counter to silence
+	STZ via_t1ch
+
+	LDA #$FF
+	STA via+$08 ; T2 timer for random numbers
+	STA via+$09 
+	
+	CLI
+
+	RTS
+
+
+joy_init ; use at beginning
+	PHA
+	LDA #$FF
+	STA joy_buttons
+	LDA via_pb
+	ORA #joy_select ; now leave it high always for speed sake
+	STA via_pb
+	PLA
+	RTS
+
+
 	.ORG $F700 ; needed to put the tables on start of pages
 
 
@@ -7878,55 +4599,119 @@ key_bitmap
 	;.BYTE $00,$00,$00,$00,$00,$00,$00,$00
 
 
-spi_enable
+longdelay
 	PHA
-	LDA via_pb
-	AND #spi_cs_inv
-	STA via_pb
+	PHX
+	PHY
+	LDA #$FF ; arbitrary values
+	LDX #$80
+	LDY #$01
+longdelay_loop
+	DEC A
+	BNE longdelay_loop
+	DEX
+	BNE longdelay_loop
+	DEY
+	BNE longdelay_loop
+	PLY
+	PLX
 	PLA
 	RTS
 
-spi_disable
-	PHA
-	LDA via_pb
-	ORA #spi_cs
-	STA via_pb
-	PLA
-	RTS
-
-spi_output_low
-	PHA
-	LDA via_pb
-	AND #spi_mosi_inv
-	STA via_pb
-	PLA
-	RTS
-
-spi_output_high
-	PHA
-	LDA via_pb
-	ORA #spi_mosi
-	STA via_pb
-	PLA
-	RTS
-
-spi_input ; results in $00 or $80
-	LDA via_pb
-	AND #spi_miso
+inputchar
+	PHY
+	PHX
+	LDA #$00
+	LDX key_read
+	CPX key_write
+	BEQ inputchar_exit
+	LDA key_read
+	INC A
+	STA key_read
+	CMP #$80
+	BNE inputchar_success
+	STZ key_read
+inputchar_success
+	LDA key_array,X
+	CMP #$F0 ; release
+	BEQ inputchar_release
+	CMP #$E0 ; extended
+	BEQ inputchar_extended
 	CLC
-	ROL A
+	CMP #$80
+	BCS inputchar_error
+	CMP #ps2_shift_left
+	BEQ inputchar_shift
+	CMP #ps2_shift_right
+	BEQ inputchar_shift
+	CMP #ps2_capslock
+	BEQ inputchar_capslock
+	CMP #ps2_alt
+	BEQ inputchar_altcontrol
+	CMP #ps2_control
+	BEQ inputchar_altcontrol
+	LDY key_release
+	CPY #$00
+	BNE inputchar_ignore
+	CMP #ps2_slash
+	BNE inputchar_continue
+	LDY key_extended
+	CPY #$00
+	BNE inputchar_skip
+inputchar_continue
+	CLC
+	ADC key_extended
+	STZ key_extended
+	CLC
+	ADC key_shift
+	CLC
+	ADC key_capslock
+inputchar_skip
+	TAX
+	LDA key_conversion,X
+	JMP inputchar_exit
+inputchar_error
+	LDA #$00
+inputchar_exit
+	PLX
+	PLY
 	RTS
+inputchar_release
+	LDA #$80
+	STA key_release
+	LDA #$00
+	JMP inputchar_exit
+inputchar_extended
+	LDA #$80
+	STA key_extended
+	LDA #$00
+	JMP inputchar_exit
+inputchar_shift
+	LDA key_release
+	CLC
+	ADC #$80
+	STA key_shift
+	JMP inputchar_ignore
+inputchar_capslock
+	LDA key_release
+	BNE inputchar_ignore
+	LDA key_capslock
+	CLC
+	ADC #$80
+	STA key_capslock
+	JMP inputchar_ignore
+inputchar_altcontrol
+	LDA key_release
+	CLC
+	ADC #$80
+	STA key_alt_control
+	JMP inputchar_ignore
+inputchar_ignore
+	STZ key_release
+	STZ key_extended
+	LDA #$00
+	JMP inputchar_exit
 
-spi_toggle
-	PHA
-	LDA via_pb
-	ORA #spi_clk
-	STA via_pb
-	; delay here?
-	AND #spi_clk_inv
-	STA via_pb
-	PLA
-	RTS
 
 
 ; upon move/button change
@@ -8044,79 +4829,6 @@ mouse_isr_pos_y
 	RTI
 
 
-
-int_init
-	LDA #$4C ; JMPa
-	STA vector_irq+0
-	LDA #<key_isr
-	STA vector_irq+1
-	LDA #>key_isr
-	STA vector_irq+2
-
-	LDA #$4C ; JMPa
-	STA vector_nmi+0
-	LDA #<joy_isr
-	STA vector_nmi+1
-	LDA #>joy_isr
-	STA vector_nmi+2
-	
-	RTS
-
-via_init
-	LDA #%10111111 ; PB is mostly output
-	STA via_db
-	STZ via_pb ; set output pins to low
-	STZ via_da ; PA is all input
-	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
-	STA via_pcr
-	LDA #%10000011 ; interrupts on CA1 and CA2
-	STA via_ier
-
-	STZ key_write
-	STZ key_read
-	;STZ key_data
-	STZ key_counter
-	STZ key_release
-	STZ key_extended
-	STZ key_shift
-	STZ key_capslock
-	STZ key_alt_control
-
-	LDA #$80
-	STA mouse_pos_x
-	STA mouse_pos_y
-	STA mouse_prev_x
-	STA mouse_prev_y
-	STZ mouse_buttons
-	STZ mouse_prev_buttons
-	;STZ mouse_data
-	STZ mouse_counter
-	STZ mouse_state
-
-	LDA #%11010000 ; free run on T1 for audio
-	STA via_acr
-	
-	STZ via_t1cl ; zero out T1 counter to silence
-	STZ via_t1ch
-
-	LDA #$FF
-	STA via+$08 ; T2 timer for random numbers
-	STA via+$09 
-	
-	CLI
-
-	RTS
-
-
-joy_init ; use at beginning
-	PHA
-	LDA #$FF
-	STA joy_buttons
-	LDA via_pb
-	ORA #joy_select ; now leave it high always for speed sake
-	STA via_pb
-	PLA
-	RTS
 
 ; upon keystroke
 key_isr
