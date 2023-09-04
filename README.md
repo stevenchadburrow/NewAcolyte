@@ -6,6 +6,6 @@ It runs a W65C02 microprocessor at 6.29 MHz, and has 64 KB of RAM and 32 KB of R
 
 Currently it's software includes the Scratchpad, Monitor, BASIC, and games including Tetra, Intruders, Missile, and Galian.
 
-(Bodge wire connects V-SYNC to /NMI. Pull-up resistors on JOY-UP, JOY-DOWN, JOY-BUTTON1, and JOY-BUTTON2. Pull-down resistor on ROM-BANK.)
+(Bodge wire connects V-SYNC to /NMI. Additional pull-up resistors on JOY-UP, JOY-DOWN, JOY-BUTTON1, and JOY-BUTTON2. Additional pull-down resistor on ROM-BANK.)
 
 <img src="NewAcolyte.jpg">
