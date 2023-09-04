@@ -345,17 +345,26 @@ rogue_location_x	.EQU $0406
 rogue_location_y	.EQU $0407
 rogue_walk_low		.EQU $0408
 rogue_walk_high		.EQU $0409
-rogue_filter		.EQU $040A
+rogue_distance		.EQU $040A
 rogue_lamp		.EQU $040B
 rogue_pickaxe		.EQU $040C
+rogue_potions		.EQU $040D
+rogue_bombs		.EQU $040E
+rogue_attack		.EQU $040F
+rogue_defense		.EQU $0410
+rogue_health		.EQU $0411
+rogue_health_max	.EQU $0412
+rogue_food_low		.EQU $0413
+rogue_food_high		.EQU $0414
+rogue_level		.EQU $0415
+rogue_gold		.EQU $0416
 
 
 rogue_floor		.EQU $8000 ; 2K
-rogue_visible		.EQU $8800 ; 2K
-rogue_map_stop		.EQU $8F00 ; 4 lines from end
-rogue_lighted		.EQU $9000 ; 2K
-rogue_digged		.EQU $9800 ; 2K
-rogue_map_end		.EQU $A000 ; end
+rogue_floor_end		.EQU $8700 ; last 4 lines
+rogue_items		.EQU $8800 ; 2K
+rogue_digged		.EQU $9000 ; 2K
+rogue_digged_end	.EQU $9800 ; end
 
 
 
@@ -376,20 +385,38 @@ vector_reset
 
 
 rogue
-	LDA #$E1 ; produces greyscale
+	LDA #$91 ; produces red and dark grey
 	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
 
 	; setup stats here
-	LDA #$02
+	LDA #$03
 	STA rogue_lamp
-	LDA #$02
+	LDA #$01
 	STA rogue_pickaxe
+	LDA #$02
+	STA rogue_potions
+	LDA #$02
+	STA rogue_bombs
+	LDA #$01
+	STA rogue_attack
+	LDA #$01
+	STA rogue_defense
+	LDA #$14
+	STA rogue_health
+	STA rogue_health_max
+	STZ rogue_food_low
+	LDA #$64
+	STA rogue_food_high
+	LDA #$01
+	STA rogue_level	
+	STZ rogue_gold
 
 rogue_reset
+	LDA #$0C ; form feed
+	JSR printchar
 	JSR rogue_clear
 	JSR rogue_walk
 	JSR rogue_location
-	JSR rogue_display
 	JSR rogue_controls
 
 
@@ -406,36 +433,101 @@ rogue_clear_loop_floor
 	BNE rogue_clear_loop_floor
 	INC sub_write+2
 	LDA sub_write+2
-	CMP #>rogue_visible
+	CMP #>rogue_items
 	BNE rogue_clear_loop_floor
-rogue_clear_loop_visible
-	LDA #$FF ; normally $00
+rogue_clear_loop_items
+	CLC
+	JSR sub_random
+	AND #%00111111
+	BEQ rogue_clear_loop_items_value
+	LDA #$00
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_value
+	CLC
+	JSR sub_random
+	AND #%00000111 ; change amount here
+	BEQ rogue_clear_loop_items_zero
+	CMP #$01
+	BEQ rogue_clear_loop_items_one
+	CMP #$02
+	BEQ rogue_clear_loop_items_two
+	CMP #$03
+	BEQ rogue_clear_loop_items_three
+	CMP #$04
+	BEQ rogue_clear_loop_items_four
+	CMP #$05
+	BEQ rogue_clear_loop_items_five
+	CMP #$06
+	BEQ rogue_clear_loop_items_six
+	CMP #$07
+	BEQ rogue_clear_loop_items_seven
+; put more here
+	LDA #$00 ; nothing
+	JMP rogue_clear_loop_items_store 
+rogue_clear_loop_items_zero
+	LDA #"!" ; potion
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_one
+	LDA #"*" ; bomb
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_two
+	LDA #"(" ; attack up
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_three
+	LDA #"[" ; defense up
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_four
+	LDA #"%" ; food
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_five
+	LDA #"i" ; lamp
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_six
+	LDA #"{" ; pickaxe
+	JMP rogue_clear_loop_items_store
+rogue_clear_loop_items_seven
+	LDA #"$" ; gold
+	JMP rogue_clear_loop_items_store
+; put more here
+rogue_clear_loop_items_store
 	JSR sub_write
-	INC sub_write+1
-	BNE rogue_clear_loop_visible
-	INC sub_write+2
+	CMP #$00
+	BEQ rogue_clear_loop_items_skip
+	LDA sub_write+1
+	STA sub_read+1
 	LDA sub_write+2
-	CMP #>rogue_lighted
-	BNE rogue_clear_loop_visible
-rogue_clear_loop_lighted
-	LDA #$00 ; normally $00
+	PHA
+	SEC
+	SBC #$08 ; now in 'floor' memory
+	STA sub_write+2
+	STA sub_read+2
+	JSR sub_read
+	CMP #"#" ; wall
+	BNE rogue_clear_loop_items_floor
+	LDA #$3A ; colon
 	JSR sub_write
+rogue_clear_loop_items_floor
+	PLA
+	STA sub_write+2
+rogue_clear_loop_items_skip
 	INC sub_write+1
-	BNE rogue_clear_loop_lighted
+	BNE rogue_clear_loop_items_jump
 	INC sub_write+2
 	LDA sub_write+2
 	CMP #>rogue_digged
-	BNE rogue_clear_loop_lighted
+	BNE rogue_clear_loop_items_jump
+	JMP rogue_clear_loop_digged
+rogue_clear_loop_items_jump
+	JMP rogue_clear_loop_items
 rogue_clear_loop_digged
-	LDA #$04 ; arbitrary hardness of stone
+	LDA #$10 ; arbitrary hardness of stone
 	JSR sub_write
 	INC sub_write+1
 	BNE rogue_clear_loop_digged
 	INC sub_write+2
 	LDA sub_write+2
-	CMP #>rogue_map_end
+	CMP #>rogue_digged_end
 	BNE rogue_clear_loop_digged
-	JSR rogue_light
 	PLA
 	RTS
 
@@ -618,6 +710,7 @@ rogue_location_loop
 	CLC
 	ADC rogue_check_x
 	STA sub_write+1
+	STA sub_read+1
 	LDA rogue_check_y
 	AND #%00011100
 	CLC
@@ -626,6 +719,21 @@ rogue_location_loop
 	CLC
 	ADC #>rogue_floor
 	STA sub_write+2
+	CLC
+	ADC #$08 ; now in 'items' memory
+	STA sub_read+2
+	JSR sub_read
+	BEQ rogue_location_write
+	LDA sub_write+2
+	PHA
+	CLC
+	ADC #$08 ; now in 'items' memory
+	STA sub_write+2
+	LDA #$00
+	JSR sub_write
+	PLA
+	STA sub_write+2
+rogue_location_write
 	JSR sub_index
 	JSR sub_write
 	INC rogue_check_x
@@ -686,59 +794,17 @@ rogue_location_data
 	.BYTE $3A,$3A,"0..0",$3A,$3A
 	.BYTE $3A,$3A,$3A,"..",$3A,$3A,$3A
 
-
-rogue_display
-	PHA
-	PHX
-	LDX #$00
-	LDA #<rogue_floor
-	STA sub_read+1
-	LDA #>rogue_floor
-	STA sub_read+2
-	LDA #<rogue_visible
-	STA sub_index+1
-	LDA #>rogue_visible
-	STA sub_index+2
-	STZ printchar_x
-	STZ printchar_y
-rogue_display_loop
-	LDA printchar_x
-	CMP rogue_player_x
-	BNE rogue_display_floor
-	LDA printchar_y
-	CMP rogue_player_y
-	BNE rogue_display_floor
-	LDA #"@"
-	JSR printchar
-	JMP rogue_display_increment
-rogue_display_floor
-	JSR sub_index
-	STA rogue_filter
-	JSR sub_read
-	AND rogue_filter
-	JSR printchar
-rogue_display_increment
-	INC sub_read+1
-	INC sub_index+1
-	BNE rogue_display_loop
-	INC sub_read+2
-	INC sub_index+2
-	LDA sub_index+2
-	CMP #>rogue_map_stop
-	BNE rogue_display_loop
-	PLX
-	PLA
-	RTS
-	
 	
 rogue_controls
+	JSR rogue_menu
+	JMP rogue_controls_move
+rogue_controls_start
 	CLC
 	JSR sub_random ; for more randomization
 	JSR inputchar
 	CMP #$00
-	BEQ rogue_controls
+	BEQ rogue_controls_start
 	PHA
-
 	LDA rogue_player_y
 	AND #%00000011
 	CLC
@@ -756,7 +822,8 @@ rogue_controls
 	CLC
 	ADC #>rogue_floor
 	STA sub_read+2
-	
+	LDA #$55 ; dark grey
+	JSR rogue_light
 	LDA rogue_player_x
 	STA rogue_check_x
 	STA printchar_x
@@ -765,7 +832,11 @@ rogue_controls
 	STA printchar_y
 	JSR sub_read
 	JSR printchar
-	
+	DEC rogue_food_low
+	BNE rogue_controls_food
+	DEC rogue_food_high
+rogue_controls_food
+	JSR rogue_menu
 	PLA
 	CMP #$11 ; arrow up
 	BEQ rogue_controls_up
@@ -801,7 +872,6 @@ rogue_controls_right
 	JMP rogue_controls_move
 ; put more here
 rogue_controls_move
-
 	LDA rogue_player_y
 	AND #%00000011
 	CLC
@@ -817,7 +887,66 @@ rogue_controls_move
 	ROR A
 	ROR A
 	CLC
-	ADC #>rogue_floor
+	ADC #>rogue_items
+	STA sub_read+2
+	JSR sub_read
+	CMP #"!" ; potion
+	BEQ rogue_controls_items_zero
+	CMP #"*" ; bomb
+	BEQ rogue_controls_items_one
+	CMP #"(" ; attack up
+	BEQ rogue_controls_items_two
+	CMP #"[" ; defense up
+	BEQ rogue_controls_items_three
+	CMP #"%" ; food
+	BEQ rogue_controls_items_four
+	CMP #"i" ; lamp
+	BEQ rogue_controls_items_five
+	CMP #"{" ; pickaxe
+	BEQ rogue_controls_items_six
+	CMP #"$" ; gold
+	BEQ rogue_controls_items_seven
+; put more here
+	JMP rogue_controls_items_clear
+rogue_controls_items_zero
+	INC rogue_potions
+	JMP rogue_controls_items_clear
+rogue_controls_items_one
+	INC rogue_bombs
+	JMP rogue_controls_items_clear
+rogue_controls_items_two
+	INC rogue_attack
+	JMP rogue_controls_items_clear
+rogue_controls_items_three
+	INC rogue_defense
+	JMP rogue_controls_items_clear
+rogue_controls_items_four
+	LDA rogue_food_high
+	CLC
+	ADC #$0A
+	STA rogue_food_high
+	JMP rogue_controls_items_clear
+rogue_controls_items_five
+	INC rogue_lamp
+	JMP rogue_controls_items_clear
+rogue_controls_items_six
+	INC rogue_pickaxe
+	JMP rogue_controls_items_clear
+rogue_controls_items_seven
+	INC rogue_gold
+	JMP rogue_controls_items_clear
+; put more here
+rogue_controls_items_clear
+	LDA sub_read+1
+	STA sub_write+1
+	LDA sub_read+2
+	STA sub_write+2
+	LDA #$00
+	JSR sub_write
+rogue_controls_floor
+	LDA sub_read+2
+	SEC
+	SBC #$08 ; now in 'floor' memory
 	STA sub_read+2
 	JSR sub_read
 	CMP #$3C ; less than
@@ -830,14 +959,13 @@ rogue_controls_move
 	BEQ rogue_controls_redraw
 	CMP #"#"
 	BEQ rogue_controls_dig
-	
 rogue_controls_bounds
 	LDA rogue_check_x
 	STA rogue_player_x
 	LDA rogue_check_y
 	STA rogue_player_y
-
 rogue_controls_redraw
+	LDA #$FF ; white
 	JSR rogue_light
 	LDA rogue_player_x
 	STA printchar_x
@@ -845,8 +973,9 @@ rogue_controls_redraw
 	STA printchar_y
 	LDA #"@"
 	JSR printchar
-	JMP rogue_controls
+	JMP rogue_controls_start
 rogue_controls_descend
+	INC rogue_level
 	JMP rogue_reset
 rogue_controls_dig
 	LDA rogue_player_y
@@ -907,14 +1036,196 @@ rogue_controls_hole
 	JSR printchar
 	JMP rogue_controls_bounds
 
-	
 
-rogue_light
+
+rogue_light ; A has the lighting value
+	PHA
+	STZ printchar_x
+	STZ printchar_y
+rogue_light_loop
+	LDA rogue_player_x
+	SEC
+	SBC printchar_x
+	BCS rogue_light_x
+	EOR #$FF
+	INC A
+rogue_light_x
+	STA rogue_distance
+	LDA rogue_player_y
+	SEC
+	SBC printchar_y
+	BCS rogue_light_y
+	EOR #$FF
+	INC A
+rogue_light_y
+	CLC
+	ADC rogue_distance
+	CMP rogue_lamp
+	BCS rogue_light_increment
+	LDA printchar_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC printchar_x
+	STA sub_read+1
+	LDA printchar_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>rogue_floor
+	STA sub_read+2
+	PLA
+	PHA
+	STA printchar_foreground
+	JSR sub_read
+	PHA
+	LDA sub_read+2
+	CLC
+	ADC #$08 ; now in 'items' memory
+	STA sub_read+2
+	JSR sub_read
+	CMP #$00
+	BEQ rogue_light_floor
+	PLA
+	PLA
+	PHA
+	CMP #$FF
+	BNE rogue_light_grey
+	LDA #$AA ; red
+	STA printchar_foreground
+rogue_light_grey
+	JSR sub_read
+	JSR printchar
+	LDA #$FF
+	STA printchar_foreground
+	JMP rogue_light_check
+rogue_light_floor
+	PLA
+	JSR printchar
+	LDA #$FF
+	STA printchar_foreground
+	JMP rogue_light_check
+rogue_light_increment
+	LDA printchar_x
+	AND #%00111111
+	CMP #%00111111
+	BEQ rogue_light_return
+	INC printchar_x
+	JMP rogue_light_check
+rogue_light_return
+	STZ printchar_x
+	INC printchar_y
+rogue_light_check
+	LDA printchar_y
+	CMP #$1C
+	BCS rogue_light_exit
+	JMP rogue_light_loop
+rogue_light_exit
+	PLA
 	RTS
 
 
 
+rogue_menu
+	PHA
+	PHX
+	PHY
+	STZ printchar_x
+	LDA #$1C
+	STA printchar_y
+	
+	LDX #$00
+rogue_menu_loop
+	LDA rogue_menu_text,X
+	CMP #$00
+	BEQ rogue_menu_exit
+	CMP #$20 ; space
+	BEQ rogue_menu_skip
+	JSR printchar
+	JMP rogue_menu_increment
+rogue_menu_skip
+	INC printchar_x
+rogue_menu_increment
+	INX
+	BNE rogue_menu_loop
+rogue_menu_exit
+	LDA #$02
+	STA printchar_x
+	LDA rogue_level
+	JSR rogue_menu_number
+	LDA #$09
+	STA printchar_x
+	LDA rogue_attack
+	JSR rogue_menu_number
+	LDA #$10
+	STA printchar_x
+	LDA rogue_defense
+	JSR rogue_menu_number
+	LDA #$18
+	STA printchar_x
+	LDA rogue_health
+	JSR rogue_menu_number
+	LDA #$1C
+	STA printchar_x
+	LDA rogue_health_max
+	JSR rogue_menu_number
+	LDA #$23
+	STA printchar_x
+	LDA rogue_potions
+	JSR rogue_menu_number
+	LDA #$2A
+	STA printchar_x
+	LDA rogue_bombs
+	JSR rogue_menu_number
+	LDA #$34
+	STA printchar_x
+	LDA rogue_food_high
+	JSR rogue_menu_number
+	LDA #$3A
+	STA printchar_x
+	LDA rogue_gold
+	JSR rogue_menu_number
 
+	PLY
+	PLX
+	PLA
+	RTS
+rogue_menu_text
+	.BYTE "Lvl  , "
+	.BYTE "Atk  , "
+	.BYTE "Def  , "
+	.BYTE "HP    /"
+	.BYTE "   , "
+	.BYTE "Ptn  , "
+	.BYTE "Bmb  , "
+	.BYTE "Food    "
+	.BYTE ", $"
+	.BYTE $00
+
+rogue_menu_number
+	STZ basic_value1_high
+	STA basic_value1_low
+	CLC
+	CMP #$64
+	BCS rogue_menu_number_print
+	INC printchar_x
+	CLC
+	CMP #$0A
+	BCS rogue_menu_number_print
+	INC printchar_x
+rogue_menu_number_print
+	PHY
+	JSR basic_print_unsigned
+	PLY
+	RTS
+	
+
+	
 
 
 
