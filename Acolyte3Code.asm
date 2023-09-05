@@ -358,6 +358,7 @@ rogue_food_low		.EQU $0413
 rogue_food_high		.EQU $0414
 rogue_level		.EQU $0415
 rogue_gold		.EQU $0416
+rogue_filter		.EQU $0417
 
 
 rogue_floor		.EQU $8000 ; 2K
@@ -389,7 +390,7 @@ rogue
 	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
 
 	; setup stats here
-	LDA #$03
+	LDA #$02
 	STA rogue_lamp
 	LDA #$01
 	STA rogue_pickaxe
@@ -822,16 +823,16 @@ rogue_controls_start
 	CLC
 	ADC #>rogue_floor
 	STA sub_read+2
-	LDA #$55 ; dark grey
-	JSR rogue_light
+	;LDA #$55 ; dark grey
+	;JSR rogue_light
 	LDA rogue_player_x
 	STA rogue_check_x
 	STA printchar_x
 	LDA rogue_player_y
 	STA rogue_check_y
 	STA printchar_y
-	JSR sub_read
-	JSR printchar
+	;JSR sub_read
+	;JSR printchar
 	DEC rogue_food_low
 	BNE rogue_controls_food
 	DEC rogue_food_high
@@ -943,6 +944,7 @@ rogue_controls_items_clear
 	STA sub_write+2
 	LDA #$00
 	JSR sub_write
+	JSR rogue_menu
 rogue_controls_floor
 	LDA sub_read+2
 	SEC
@@ -965,7 +967,7 @@ rogue_controls_bounds
 	LDA rogue_check_y
 	STA rogue_player_y
 rogue_controls_redraw
-	LDA #$FF ; white
+	;LDA #$FF ; white
 	JSR rogue_light
 	LDA rogue_player_x
 	STA printchar_x
@@ -1038,11 +1040,19 @@ rogue_controls_hole
 
 
 
-rogue_light ; A has the lighting value
+rogue_light
 	PHA
 	STZ printchar_x
 	STZ printchar_y
 rogue_light_loop
+	LDA rogue_player_x
+	CMP printchar_x
+	BNE rogue_light_calculate
+	LDA rogue_player_y
+	CMP printchar_y
+	BNE rogue_light_calculate
+	JMP rogue_light_increment
+rogue_light_calculate
 	LDA rogue_player_x
 	SEC
 	SBC printchar_x
@@ -1061,7 +1071,15 @@ rogue_light_y
 	CLC
 	ADC rogue_distance
 	CMP rogue_lamp
+	BEQ rogue_light_dark
 	BCS rogue_light_increment
+	LDA #$FF
+	STA rogue_filter
+	JMP rogue_light_bright
+rogue_light_dark
+	LDA #$55
+	STA rogue_filter
+rogue_light_bright
 	LDA printchar_y
 	AND #%00000011
 	CLC
@@ -1079,8 +1097,7 @@ rogue_light_y
 	CLC
 	ADC #>rogue_floor
 	STA sub_read+2
-	PLA
-	PHA
+	LDA rogue_filter
 	STA printchar_foreground
 	JSR sub_read
 	PHA
@@ -1092,8 +1109,7 @@ rogue_light_y
 	CMP #$00
 	BEQ rogue_light_floor
 	PLA
-	PLA
-	PHA
+	LDA rogue_filter
 	CMP #$FF
 	BNE rogue_light_grey
 	LDA #$AA ; red
