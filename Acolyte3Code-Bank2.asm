@@ -120,6 +120,8 @@ via_db			.EQU via+$02
 via_da			.EQU via+$03
 via_t1cl		.EQU via+$04
 via_t1ch		.EQU via+$05
+via_t2cl		.EQU via+$08
+via_t2ch		.EQU via+$09
 via_acr			.EQU via+$0B
 via_pcr			.EQU via+$0C
 via_ifr			.EQU via+$0D
@@ -165,107 +167,134 @@ mouse_state		.EQU $0291
 
 joy_buttons		.EQU $0292
 
-tetra_score_low		.EQU $0293
-tetra_score_high	.EQU $0294
-tetra_piece		.EQU $0295
-tetra_piece_next	.EQU $0296
-tetra_location		.EQU $0297
-tetra_speed		.EQU $0298
-tetra_overscan		.EQU $0299
-tetra_joy_prev		.EQU $029A
-tetra_values		.EQU $029B ; 3 bytes
+sub_random		.EQU $0293 ; 18 bytes long
+sub_random_var		.EQU $02A5
 
-monitor_mode		.EQU $029E
-monitor_nibble		.EQU $029F
-monitor_values		.EQU $02A0 ; 8 bytes long
+clock_low		.EQU $02A6
+clock_high		.EQU $02A7
 
-sub_jump		.EQU $02A8 ; 3 bytes long
-sub_random_var		.EQU $02AB
-sub_read		.EQU $02AC ; 4 bytes long
-sub_index		.EQU $02B0 ; 4 bytes long
-sub_write		.EQU $02B4 ; 4 bytes long
+vector_irq		.EQU $02A8 ; 4 bytes long
+vector_nmi		.EQU $02AC ; 4 bytes long
 
-vector_irq		.EQU $02B8 ; 4 bytes long
-vector_nmi		.EQU $02BC ; 4 bytes long
+sub_jump		.EQU $02B0 ; 4 bytes long
+sub_read		.EQU $02B4 ; 4 bytes long
+sub_index		.EQU $02B8 ; 4 bytes long
+sub_write		.EQU $02BC ; 4 bytes long
 
-sub_inputchar		.EQU $02C0 ; 4 bytes long
-sub_printchar		.EQU $02C4 ; 4 bytes long
+sdcard_block		.EQU $02C0 ; 2 bytes 
 
-printchar_x		.EQU $02C8 ; from $00 to $3F
-printchar_y		.EQU $02C9 ; from $00 to $1D
-printchar_foreground	.EQU $02CA ; either $00, $55, $AA, or $FF
-printchar_background	.EQU $02CB ; either $00, $55, $AA, or $FF
-printchar_inverse	.EQU $02CC ; either $00 or $FF
-printchar_storage	.EQU $02CD
-colorchar_input		.EQU $02CE
-colorchar_output	.EQU $02CF
-printchar_read		.EQU $02D0 ; 4 bytes long
-printchar_write		.EQU $02D4 ; 4 bytes long
+printchar_x		.EQU $02C2 ; from $00 to $3F
+printchar_y		.EQU $02C3 ; from $00 to $1D
+printchar_foreground	.EQU $02C4 ; either $00, $55, $AA, or $FF
+printchar_background	.EQU $02C5 ; either $00, $55, $AA, or $FF
+printchar_inverse	.EQU $02C6 ; either $00 or $FF
+printchar_storage	.EQU $02C7
+printchar_read		.EQU $02C8 ; 4 bytes long
+printchar_write		.EQU $02CC ; 4 bytes long
 
-sub_sdcard_initialize	.EQU $02D8 ; 4 bytes
-sub_sdcard_readblock	.EQU $02DC ; 4 bytes
-sub_sdcard_writeblock	.EQU $02E0 ; 4 bytes
+colorchar_input		.EQU $02D0
+colorchar_output	.EQU $02D1
 
-sdcard_block		.EQU $02E4 ; 2 bytes 
+selector_joy_prev	.EQU $02D2
+selector_position	.EQU $02D3
 
-basic_line_low		.EQU $02E6
-basic_line_high		.EQU $02E7
-basic_value1_low	.EQU $02E8
-basic_value1_high	.EQU $02E9
-basic_value2_low	.EQU $02EA
-basic_value2_high	.EQU $02EB
-basic_value3_low	.EQU $02EC
-basic_value3_high	.EQU $02ED
-basic_value4_low	.EQU $02EE
-basic_value4_high	.EQU $02EF
-basic_character		.EQU $02F0
-basic_operator		.EQU $02F1
-basic_wait_end		.EQU $02F2
-basic_wait_delete	.EQU $02F3
+; unused memory here
 
-scratchpad_lastchar	.EQU $02F4
+; memory from $0300 to $04FF is available for any program
+; but changes for each program
 
-function_mode		.EQU $02F5
+command_string		.EQU $0300 ; 64 bytes long
 
-missile_joy_prev	.EQU $02F6
-missile_key_space	.EQU $02F7
-missile_key_up		.EQU $02F8
-missile_key_down	.EQU $02F9
-missile_key_left	.EQU $02FA
-missile_key_right	.EQU $02FB
-missile_pop_value	.EQU $02FC
+function_mode		.EQU $0340
 
+scratchpad_lastchar	.EQU $0341
 
-clock_low		.EQU $02FE
-clock_high		.EQU $02FF
+monitor_mode		.EQU $0342
+monitor_nibble		.EQU $0343
+monitor_values		.EQU $0344 ; 8 bytes long
 
-sub_random		.EQU $0300 ; 18 bytes long
+basic_line_low		.EQU $034C
+basic_line_high		.EQU $034D
+basic_value1_low	.EQU $034E
+basic_value1_high	.EQU $034F
+basic_value2_low	.EQU $0350
+basic_value2_high	.EQU $0351
+basic_value3_low	.EQU $0352
+basic_value3_high	.EQU $0353
+basic_value4_low	.EQU $0354
+basic_value4_high	.EQU $0355
+basic_character		.EQU $0356
+basic_operator		.EQU $0357
+basic_wait_end		.EQU $0358
+basic_wait_delete	.EQU $0359
+basic_variables_low	.EQU $035A ; 26 bytes
+basic_variables_high	.EQU $0374 ; 26 bytes
+basic_keys		.EQU $038E ; 16 bytes long
+basic_keys_plus_one	.EQU $039F
+basic_memory		.EQU $8000 ; 16KB available
+basic_memory_end	.EQU $C000 ; one past
 
-basic_variables_low	.EQU $0312 ; 26 bytes
-basic_variables_high	.EQU $032C ; 26 bytes
-
-basic_keys		.EQU $0346 ; 16 bytes long
-basic_keys_plus_one	.EQU $0347
-
-missile_ammo_value	.EQU $0356
-missile_dist_value	.EQU $0357
-missile_enemy_value	.EQU $0358
-missile_stop_value	.EQU $0359
-missile_round_value	.EQU $035A
-missile_enemy_constant	.EQU $035B
-missile_speed_constant	.EQU $035C
-missile_random_constant	.EQU $035D
-missile_ammo_constant	.EQU $035E
-missile_paused		.EQU $035F
-missile_score_low	.EQU $0360
-missile_score_high	.EQU $0361
-
-; unused
-
-command_string		.EQU $03C0 ; 64 bytes long
-
+tetra_score_low		.EQU $0300 ; reusing memory location
+tetra_score_high	.EQU $0301
+tetra_piece		.EQU $0302
+tetra_piece_next	.EQU $0303
+tetra_location		.EQU $0304
+tetra_speed		.EQU $0305
+tetra_overscan		.EQU $0306
+tetra_joy_prev		.EQU $0307
+tetra_values		.EQU $0308 ; 3 bytes
 tetra_field		.EQU $0400 ; 256 bytes long
 
+intruders_player_pos	.EQU $0300 ; reusing memory location
+intruders_player_lives	.EQU $0301
+intruders_missile_pos_x	.EQU $0302
+intruders_missile_pos_y	.EQU $0303
+intruders_enemy_fall	.EQU $0304
+intruders_enemy_pos_x	.EQU $0305
+intruders_enemy_pos_y	.EQU $0306
+intruders_enemy_dir_x	.EQU $0307
+intruders_enemy_speed	.EQU $0308
+intruders_enemy_miss_s	.EQU $0309
+intruders_enemy_miss_x	.EQU $030A
+intruders_enemy_miss_y	.EQU $030B
+intruders_delay_timer	.EQU $030C
+intruders_button_left	.EQU $030D
+intruders_button_right	.EQU $030E
+intruders_button_fire	.EQU $030F
+intruders_mystery_pos	.EQU $0310
+intruders_mystery_speed	.EQU $0311
+intruders_points_low	.EQU $0312
+intruders_points_high	.EQU $0313
+intruders_level		.EQU $0314
+intruders_overall_delay	.EQU $0315
+intruders_mystery_bank	.EQU $0316
+intruders_char_value	.EQU $0317
+intruders_color_current	.EQU $0318
+intruders_paused	.EQU $0319
+intruders_joy_prev	.EQU $031A
+intruders_fire_delay	.EQU $031B
+intruders_hit_delay	.EQU $031C
+intruders_enemy_visible	.EQU $0400 ; many bytes long
+
+missile_ammo_value	.EQU $0300
+missile_dist_value	.EQU $0301
+missile_enemy_value	.EQU $0302
+missile_stop_value	.EQU $0303
+missile_round_value	.EQU $0304
+missile_enemy_constant	.EQU $0305
+missile_speed_constant	.EQU $0306
+missile_random_constant	.EQU $0307
+missile_ammo_constant	.EQU $0308
+missile_paused		.EQU $0309
+missile_score_low	.EQU $030A
+missile_score_high	.EQU $030B
+missile_joy_prev	.EQU $030C
+missile_key_space	.EQU $030D
+missile_key_up		.EQU $030E
+missile_key_down	.EQU $030F
+missile_key_left	.EQU $0310
+missile_key_right	.EQU $0311
+missile_pop_value	.EQU $0312
 missile_missile_x	.EQU $0400 ; 16 bytes long
 missile_missile_y	.EQU $0410 ; 16 bytes long
 missile_target_x	.EQU $0420 ; 16 bytes long
@@ -291,87 +320,79 @@ missile_prev7_y		.EQU $04E8 ; 8 bytes long
 missile_prev8_x		.EQU $04F0 ; 8 bytes long
 missile_prev8_y		.EQU $04F8 ; 8 bytes long
 
-intruders_player_pos	.EQU $0400 ; reusing memory location
-intruders_player_lives	.EQU $0401
-intruders_missile_pos_x	.EQU $0402
-intruders_missile_pos_y	.EQU $0403
-intruders_enemy_fall	.EQU $0404
-intruders_enemy_pos_x	.EQU $0405
-intruders_enemy_pos_y	.EQU $0406
-intruders_enemy_dir_x	.EQU $0407
-intruders_enemy_speed	.EQU $0408
-intruders_enemy_miss_s	.EQU $0409
-intruders_enemy_miss_x	.EQU $040A
-intruders_enemy_miss_y	.EQU $040B
-intruders_delay_timer	.EQU $040C
-intruders_button_left	.EQU $040D
-intruders_button_right	.EQU $040E
-intruders_button_fire	.EQU $040F
-intruders_mystery_pos	.EQU $0410
-intruders_mystery_speed	.EQU $0411
-intruders_points_low	.EQU $0412
-intruders_points_high	.EQU $0413
-intruders_level		.EQU $0414
-intruders_overall_delay	.EQU $0415
-intruders_mystery_bank	.EQU $0416
-intruders_char_value	.EQU $0417
-intruders_color_current	.EQU $0418
-intruders_paused	.EQU $0419
-intruders_joy_prev	.EQU $041A
-intruders_fire_delay	.EQU $041B
-intruders_hit_delay	.EQU $041C
-; unused
-intruders_enemy_visible	.EQU $0420
+galian_player_x		.EQU $0300 ; reusing memory location
+galian_player_y		.EQU $0301
+galian_player_lives	.EQU $0302
+galian_player_flash	.EQU $0303
+galian_release		.EQU $0304
+galian_button_up	.EQU $0305
+galian_button_down	.EQU $0306
+galian_button_left	.EQU $0307
+galian_button_right	.EQU $0308
+galian_button_fire	.EQU $0309
+galian_fire_delay	.EQU $030A
+galian_frame		.EQU $030B
+galian_clock		.EQU $030C
+galian_filter		.EQU $030D
+galian_enemy_count	.EQU $030E
+galian_joy_prev		.EQU $030F
+galian_enemy_speed	.EQU $0310
+galian_bullet_speed	.EQU $0311
+galian_star_speed	.EQU $0312
+galian_score_low	.EQU $0313
+galian_score_high	.EQU $0314
+galian_level		.EQU $0315
+galian_pause_mode	.EQU $0316
+galian_bullet_x		.EQU $0400 ; 16 bytes
+galian_bullet_y		.EQU $0410 ; 16 bytes
+galian_enemy_x		.EQU $0420 ; 16 bytes
+galian_enemy_y		.EQU $0430 ; 16 bytes
+galian_enemy_dx		.EQU $0440 ; 16 bytes
+galian_enemy_dy		.EQU $0450 ; 16 bytes
+galian_enemy_t		.EQU $0460 ; 16 bytes
+galian_enemy_h		.EQU $0470 ; 16 bytes
+galian_enemy_s		.EQU $0480 ; 16 bytes
+galian_particle_x	.EQU $0490 ; 16 bytes
+galian_particle_y	.EQU $04A0 ; 16 bytes
+galian_particle_dx	.EQU $04B0 ; 16 bytes
+galian_star_x		.EQU $04C0 ; 16 bytes
+galian_star_y		.EQU $04D0 ; 16 bytes
 
-
-galian_player_x	.EQU $0400 ; reusing memory location
-galian_player_y	.EQU $0401
-galian_player_lives	.EQU $0402
-galian_player_flash	.EQU $0403
-galian_release	.EQU $0404
-galian_button_up	.EQU $0405
-galian_button_down	.EQU $0406
-galian_button_left	.EQU $0407
-galian_button_right	.EQU $0408
-galian_button_fire	.EQU $0409
-galian_fire_delay	.EQU $040A
-galian_frame		.EQU $040B
-galian_clock		.EQU $040C
-galian_filter		.EQU $040D
-galian_enemy_count	.EQU $040E
-galian_joy_prev	.EQU $040F
-galian_bullet_x	.EQU $0410 ; 16 bytes
-galian_bullet_y	.EQU $0420 ; 16 bytes
-galian_enemy_x	.EQU $0430 ; 16 bytes
-galian_enemy_y	.EQU $0440 ; 16 bytes
-galian_enemy_dx	.EQU $0450 ; 16 bytes
-galian_enemy_dy	.EQU $0460 ; 16 bytes
-galian_enemy_t	.EQU $0470 ; 16 bytes
-galian_enemy_h	.EQU $0480 ; 16 bytes
-galian_enemy_s	.EQU $0490 ; 16 bytes
-galian_particle_x	.EQU $04A0 ; 16 bytes
-galian_particle_y	.EQU $04B0 ; 16 bytes
-galian_particle_dx	.EQU $04C0 ; 16 bytes
-galian_star_x		.EQU $04D0 ; 16 bytes
-galian_star_y		.EQU $04E0 ; 16 bytes
-galian_enemy_speed	.EQU $04F0
-galian_bullet_speed	.EQU $04F1
-galian_star_speed	.EQU $04F2
-galian_score_low	.EQU $04F3
-galian_score_high	.EQU $04F4
-galian_level		.EQU $04F5
-galian_pause_mode	.EQU $04F6
-
-selector_joy_prev	.EQU $04FE
-selector_position	.EQU $04FF
-
-
-basic_memory		.EQU $8000 ; 16KB available
-basic_memory_end	.EQU $C000 ; one past
+rogue_player_x		.EQU $0300 ; reusing memory
+rogue_player_y		.EQU $0301
+rogue_stairs_x		.EQU $0302
+rogue_stairs_y		.EQU $0303
+rogue_check_x		.EQU $0304
+rogue_check_y		.EQU $0305
+rogue_location_x	.EQU $0306
+rogue_location_y	.EQU $0307
+rogue_walk_low		.EQU $0308
+rogue_walk_high		.EQU $0309
+rogue_distance		.EQU $030A
+rogue_lamp		.EQU $030B
+rogue_pickaxe		.EQU $030C
+rogue_potions		.EQU $030D
+rogue_bombs		.EQU $030E
+rogue_attack		.EQU $030F
+rogue_defense		.EQU $0310
+rogue_health		.EQU $0311
+rogue_health_max	.EQU $0312
+rogue_food_low		.EQU $0313
+rogue_food_high		.EQU $0314
+rogue_level		.EQU $0315
+rogue_gold		.EQU $0316
+rogue_filter		.EQU $0317
+rogue_floor		.EQU $8000 ; 2K
+rogue_floor_end		.EQU $8700 ; last 4 lines
+rogue_items		.EQU $8800 ; 2K
+rogue_digged		.EQU $9000 ; 2K
+rogue_digged_end	.EQU $9800 ; end
 
 
 
-	
+
+
+
 	.ORG $C000 ; start of code
 
 vector_reset
@@ -1965,6 +1986,10 @@ intruders_draw_missile_normal
 	CLC
 	CMP #$09
 	BCS intruders_draw_missile_mystery_skip
+	LDA intruders_level
+	CLC
+	CMP #$08
+	BCS intruders_draw_missile_mystery_skip
 	INC intruders_player_lives
 intruders_draw_missile_mystery_skip
 	JSR intruders_draw_menu
@@ -2063,6 +2088,10 @@ intruders_draw_missile_check_next4
 	AND #%00001111
 	CLC
 	CMP #$09
+	BCS intruders_draw_missile_points
+	LDA intruders_level
+	CLC
+	CMP #$08
 	BCS intruders_draw_missile_points
 	INC intruders_player_lives
 intruders_draw_missile_points
@@ -4280,15 +4309,7 @@ missile_pause_text
 	
 galian
 	LDA #$00 ; produces 16-colors
-	STA $FFFF
-
-;	LDA #%11010000 ; let T2 free run for random numbers
-;	STA via+$0B
-;	STZ via+$04
-;	STZ via+$05
-;	LDA #$FF
-;	STA via+$08
-;	STA via+$09 
+	STA $FFFF 
 
 	JMP galian_start
 
@@ -4402,6 +4423,12 @@ galian_tick
 	BNE galian_enemy_appearance
 	JMP galian_ai
 galian_enemy_appearance
+	LDA galian_score_high
+	CLC
+	CMP #$10
+	BCC galian_enemy_appearance_random
+	JMP galian_enemy_beginning
+galian_enemy_appearance_random
 	CLC
 	JSR sub_random
 	AND galian_star_speed ; arbitrary enemy appearance
@@ -4545,9 +4572,22 @@ galian_ai_two
 	JMP galian_ai_increment
 galian_ai_three
 	INC galian_enemy_s,X
+	LDA galian_score_high
+	CLC
+	ROR A
+	CLC
+	ROR A
+	CLC
+	ROR A
+	CLC
+	ROR A
+	CLC
+	ADC galian_enemy_s,X
+	STA galian_enemy_s,X
 	LDA galian_enemy_s,X
+	CLC
 	CMP #$40 ; arbitrary speed of shooting
-	BEQ galian_ai_three_particles
+	BCS galian_ai_three_particles
 	JMP galian_ai_increment
 galian_ai_three_particles
 	STZ galian_enemy_s,X
@@ -4751,6 +4791,7 @@ galian_bullet_loop
 	LDA galian_score_low
 	CLC
 	ADC galian_level
+	INC A
 	STA galian_score_low
 	CMP #$64 ; 100 in decimal
 	BCC galian_bullet_unshow
@@ -4758,6 +4799,10 @@ galian_bullet_loop
 	SBC #$64
 	STA galian_score_low
 	INC galian_score_high
+	LDA galian_score_high
+	CLC
+	CMP #$10
+	BCS galian_bullet_unshow
 	INC galian_player_lives
 galian_bullet_unshow
 	LDA #$00
@@ -6009,16 +6054,6 @@ setup_random_loop
 	CPX #$13
 	BNE setup_random_loop
 
-; just takes T2rand
-;	LDA #$AD ; LDAa
-;	STA sub_random+0
-;	LDA #<via+$08
-;	STA sub_random+1
-;	LDA #>via+$08
-;	STA sub_random+2
-;	LDA #$60 ; RTS
-;	STA sub_random+3
-
 ;	JSR basic_clear
 
 	RTS
@@ -6029,7 +6064,7 @@ setup_random_loop
 ; ADC sub_random_var ; multiply by 3
 ; CLC
 ; ADC #$11 ; add 17
-; ADC via+$08 ; add random value
+; ADC via_t2cl ; add random value
 ; STA sub_random_var
 ; RTS
 setup_random_code
@@ -6038,7 +6073,7 @@ setup_random_code
 	.BYTE $2A,$18,$6D
 	.WORD sub_random_var
 	.BYTE $18,$69,$11,$6D
-	.WORD via+$08
+	.WORD via_t2cl
 	.BYTE $8D
 	.WORD sub_random_var
 	.BYTE $60
@@ -6100,8 +6135,8 @@ via_init
 	STZ via_t1ch
 
 	LDA #$FF
-	STA via+$08 ; T2 timer for random numbers
-	STA via+$09 
+	STA via_t2cl ; T2 timer for random numbers
+	STA via_t2ch 
 	
 	CLI
 
