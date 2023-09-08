@@ -393,7 +393,7 @@ rogue_food_high		.EQU $0314
 rogue_level		.EQU $0315
 rogue_gold		.EQU $0316
 rogue_filter		.EQU $0317
-rogue_experience	.EQU $0318
+rogue_exp		.EQU $0318
 rogue_enemy_x		.EQU $0400 ; 16 bytes long
 rogue_enemy_y		.EQU $0410 ; 16 bytes long
 rogue_enemy_h		.EQU $0420 ; 16 bytes long
@@ -443,8 +443,8 @@ rogue
 	LDA #$14
 	STA rogue_health
 	STA rogue_health_max
-	STZ rogue_food_low
-	LDA #$64
+	LDA #$32
+	STA rogue_food_low
 	STA rogue_food_high
 	LDA #$01
 	STA rogue_level	
@@ -912,10 +912,10 @@ rogue_collide_loop
 rogue_collide_check
 	LDA rogue_enemy_h,X
 	BNE rogue_collide_increment
-	LDA rogue_experience
+	LDA rogue_exp
 	CLC	
 	ADC rogue_enemy_e,X
-	STA rogue_experience ; needs more than just 256?  also check for level up
+	STA rogue_exp ; needs more than just 256?  also check for level up
 
 rogue_collide_increment
 	INX
@@ -1420,6 +1420,7 @@ rogue_light_exit
 
 rogue_blast
 	PHA
+	PHX
 	STZ printchar_x
 	STZ printchar_y
 rogue_blast_loop
@@ -1450,6 +1451,21 @@ rogue_blast_y
 	ADC rogue_distance
 	CMP #$03 ; arbitrary blast radius
 	BCS rogue_blast_increment
+
+	LDA rogue_player_x
+	PHA
+	LDA rogue_player_y
+	PHA
+	LDA printchar_x
+	STA rogue_player_x
+	LDA printchar_y
+	STA rogue_player_y
+	JSR rogue_collide
+	PLA
+	STA rogue_player_y
+	PLA
+	STA rogue_player_x
+
 	LDA printchar_y
 	AND #%00000011
 	CLC
@@ -1497,6 +1513,7 @@ rogue_blast_check
 	BCS rogue_blast_exit
 	JMP rogue_blast_loop
 rogue_blast_exit
+	PLX
 	PLA
 	RTS
 
