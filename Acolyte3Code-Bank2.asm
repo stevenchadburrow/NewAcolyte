@@ -467,6 +467,8 @@ selector_keys
 	JSR inputchar
 	CMP #$00
 	BEQ selector_loop
+	CMP #$1B ; escape
+	BEQ selector_bank
 	CMP #$11 ; arrow up
 	BEQ selector_key_up
 	CMP #$12 ; arrow down
@@ -474,6 +476,8 @@ selector_keys
 	CMP #$20 ; space
 	BEQ selector_activate
 	JMP selector_loop
+selector_bank
+	JMP bank_switch
 selector_joy_up
 	LDA selector_joy_prev
 	AND #%00000001
