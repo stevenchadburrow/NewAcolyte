@@ -440,6 +440,14 @@ rogue_level_low
 	.BYTE $05,$14,$32,$64,$FF
 rogue_level_high
 	.BYTE $00,$00,$00,$00,$FF
+rogue_enemy_type
+	.BYTE "F","B","G","H"
+rogue_enemy_health
+	.BYTE $02,$03,$08,$0C
+rogue_enemy_damage
+	.BYTE $00,$01,$04,$08
+rogue_enemy_exp
+	.BYTE $01,$02,$06,$10
 
 rogue_init
 	; setup stats here
@@ -473,7 +481,7 @@ rogue_reset
 	JSR printchar
 	JSR rogue_clear
 	JSR rogue_walk
-	JSR rogue_location
+;	JSR rogue_location
 	JSR rogue_populate
 	JSR rogue_blast
 	JSR rogue_controls
@@ -686,157 +694,157 @@ rogue_walk_exit
 
 
 
-rogue_location
-	PHA
-	PHX
-	PHY
-	LDA #<rogue_location_data
-	STA sub_index+1
-	LDA #>rogue_location_data
-	STA sub_index+2
-	CLC
-	JSR sub_random
-	AND #%01000000 ; change to #%11000000 for 4 chunks of data
-	CLC
-	ADC sub_index+1
-	STA sub_index+1
-	BCC rogue_location_random
-	INC sub_index+2
-rogue_location_random
-	CLC
-	JSR sub_random
-	AND #%00111111
-	CLC
-	CMP #$38
-	BCS rogue_location_random
-	STA rogue_location_x
-	STA rogue_check_x
-	CLC
-	JSR sub_random
-	AND #%00011111
-	STA rogue_location_y
-	STA rogue_check_y
-	CLC
-	CMP #$14
-	BCS rogue_location_random
-	LDX #$00
-	LDY #$00
-rogue_location_player
-	LDA rogue_check_x
-	CMP rogue_player_x
-	BNE rogue_location_stairs
-	LDA rogue_check_y
-	CMP rogue_player_y
-	BNE rogue_location_stairs
-	JMP rogue_location_random
-rogue_location_stairs
-	LDA rogue_check_x
-	CMP rogue_stairs_x
-	BNE rogue_location_increment
-	LDA rogue_check_y
-	CMP rogue_stairs_y
-	BNE rogue_location_increment
-	JMP rogue_location_random
-rogue_location_increment
-	INC rogue_check_x
-	INX
-	INY
-	CPX #$40
-	BEQ rogue_location_ready
-	CPY #$08
-	BNE rogue_location_player
-	LDY #$00
-	LDA rogue_check_x
-	SEC
-	SBC #$08
-	STA rogue_check_x
-	INC rogue_check_y
-	JMP rogue_location_player
-rogue_location_ready
-	LDA rogue_location_x
-	STA rogue_check_x
-	LDA rogue_location_y
-	STA rogue_check_y
-	LDX #$00
-	LDY #$00
-rogue_location_loop
-	LDA rogue_check_y
-	AND #%00000011
-	CLC
-	ROR A
-	ROR A
-	ROR A
-	CLC
-	ADC rogue_check_x
-	STA sub_write+1
-	STA sub_read+1
-	LDA rogue_check_y
-	AND #%00011100
-	CLC
-	ROR A
-	ROR A
-	CLC
-	ADC #>rogue_floor
-	STA sub_write+2
-	CLC
-	ADC #$08 ; now in 'items' memory
-	STA sub_read+2
-	JSR sub_read
-	BEQ rogue_location_write
-	LDA sub_write+2
-	PHA
-	CLC
-	ADC #$08 ; now in 'items' memory
-	STA sub_write+2
-	LDA #$00
-	JSR sub_write
-	PLA
-	STA sub_write+2
-rogue_location_write
-	JSR sub_index
-	JSR sub_write
-	INC rogue_check_x
-	INX
-	INY
-	CPX #$40
-	BEQ rogue_location_exit
-	CPY #$08
-	BNE rogue_location_loop
-	LDY #$00
-	LDA rogue_check_x
-	SEC
-	SBC #$08
-	STA rogue_check_x
-	INC rogue_check_y
-	JMP rogue_location_loop
-rogue_location_exit
-	LDA rogue_player_x ; just in case
-	STA rogue_check_x
-	LDA rogue_player_y
-	STA rogue_check_y
-	PLY
-	PLX
-	PLA
-	RTS
+;rogue_location
+;	PHA
+;	PHX
+;	PHY
+;	LDA #<rogue_location_data
+;	STA sub_index+1
+;	LDA #>rogue_location_data
+;	STA sub_index+2
+;	CLC
+;	JSR sub_random
+;	AND #%11000000 
+;	CLC
+;	ADC sub_index+1
+;	STA sub_index+1
+;	BCC rogue_location_random
+;	INC sub_index+2
+;rogue_location_random
+;	CLC
+;	JSR sub_random
+;	AND #%00111111
+;	CLC
+;	CMP #$38
+;	BCS rogue_location_random
+;	STA rogue_location_x
+;	STA rogue_check_x
+;	CLC
+;	JSR sub_random
+;	AND #%00011111
+;	STA rogue_location_y
+;	STA rogue_check_y
+;	CLC
+;	CMP #$14
+;	BCS rogue_location_random
+;	LDX #$00
+;	LDY #$00
+;rogue_location_player
+;	LDA rogue_check_x
+;	CMP rogue_player_x
+;	BNE rogue_location_stairs
+;	LDA rogue_check_y
+;	CMP rogue_player_y
+;	BNE rogue_location_stairs
+;	JMP rogue_location_random
+;rogue_location_stairs
+;	LDA rogue_check_x
+;	CMP rogue_stairs_x
+;	BNE rogue_location_increment
+;	LDA rogue_check_y
+;	CMP rogue_stairs_y
+;	BNE rogue_location_increment
+;	JMP rogue_location_random
+;rogue_location_increment
+;	INC rogue_check_x
+;	INX
+;	INY
+;	CPX #$40
+;	BEQ rogue_location_ready
+;	CPY #$08
+;	BNE rogue_location_player
+;	LDY #$00
+;	LDA rogue_check_x
+;	SEC
+;	SBC #$08
+;	STA rogue_check_x
+;	INC rogue_check_y
+;	JMP rogue_location_player
+;rogue_location_ready
+;	LDA rogue_location_x
+;	STA rogue_check_x
+;	LDA rogue_location_y
+;	STA rogue_check_y
+;	LDX #$00
+;	LDY #$00
+;rogue_location_loop
+;	LDA rogue_check_y
+;	AND #%00000011
+;	CLC
+;	ROR A
+;	ROR A
+;	ROR A
+;	CLC
+;	ADC rogue_check_x
+;	STA sub_write+1
+;	STA sub_read+1
+;	LDA rogue_check_y
+;	AND #%00011100
+;	CLC
+;	ROR A
+;	ROR A
+;	CLC
+;	ADC #>rogue_floor
+;	STA sub_write+2
+;	CLC
+;	ADC #$08 ; now in 'items' memory
+;	STA sub_read+2
+;	JSR sub_read
+;	BEQ rogue_location_write
+;	LDA sub_write+2
+;	PHA
+;	CLC
+;	ADC #$08 ; now in 'items' memory
+;	STA sub_write+2
+;	LDA #$00
+;	JSR sub_write
+;	PLA
+;	STA sub_write+2
+;rogue_location_write
+;	JSR sub_index
+;	JSR sub_write
+;	INC rogue_check_x
+;	INX
+;	INY
+;	CPX #$40
+;	BEQ rogue_location_exit
+;	CPY #$08
+;	BNE rogue_location_loop
+;	LDY #$00
+;	LDA rogue_check_x
+;	SEC
+;	SBC #$08
+;	STA rogue_check_x
+;	INC rogue_check_y
+;	JMP rogue_location_loop
+;rogue_location_exit
+;	LDA rogue_player_x ; just in case
+;	STA rogue_check_x
+;	LDA rogue_player_y
+;	STA rogue_check_y
+;	PLY
+;	PLX
+;	PLA
+;	RTS
 
-rogue_location_data
-	.BYTE "--------"
-	.BYTE $7C,"......",$7C
-	.BYTE $7C,"......",$7C
-	.BYTE "---++---"
-	.BYTE $7C,"......",$7C
-	.BYTE $7C,"......",$7C
-	.BYTE "+......+"
-	.BYTE "--------"
+;rogue_location_data
+;	.BYTE "--------"
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE "---++---"
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE "+......+"
+;	.BYTE "--------"
 
-	.BYTE "^^....^^"
-	.BYTE "^......^"
-	.BYTE "........"
-	.BYTE "...^^..."
-	.BYTE "...^^..."
-	.BYTE "........"
-	.BYTE "^......^"
-	.BYTE "^^....^^"
+;	.BYTE "^^....^^"
+;	.BYTE "^......^"
+;	.BYTE "........"
+;	.BYTE "...^^..."
+;	.BYTE "...^^..."
+;	.BYTE "........"
+;	.BYTE "^......^"
+;	.BYTE "^^....^^"
 
 ;	.BYTE "---++---"
 ;	.BYTE $7C,"......",$7C
@@ -860,6 +868,7 @@ rogue_location_data
 rogue_populate
 	PHA
 	PHX
+	PHY
 	LDX #$00
 rogue_populate_loop
 	CLC
@@ -893,8 +902,8 @@ rogue_populate_loop
 	JSR sub_read
 	CMP #$3A ; colon
 	BEQ rogue_populate_finalize
-	CMP #"."
-	BEQ rogue_populate_finalize
+	;CMP #"."
+	;BEQ rogue_populate_finalize
 	JMP rogue_populate_loop
 rogue_populate_finalize
 	CLC
@@ -908,59 +917,24 @@ rogue_populate_finalize
 	CLC
 	CMP rogue_level
 	BCS rogue_populate_finalize
-	CMP #$01
-	BEQ rogue_populate_bat
-	CMP #$02
-	BEQ rogue_populate_goblin
-	CMP #$03
-	BEQ rogue_populate_hob
-; put more here
-	LDA #"F" ; fungus
+
+	TAY
+	LDA rogue_enemy_type,Y
 	STA rogue_enemy_t,X
-	LDA #$02
+	LDA rogue_enemy_health,Y
 	STA rogue_enemy_h,X
-	LDA #$00
+	LDA rogue_enemy_damage,Y
 	STA rogue_enemy_d,X
-	LDA #$01
+	LDA rogue_enemy_exp,Y
 	STA rogue_enemy_e,X
-	JMP rogue_populate_increment
-rogue_populate_bat
-	LDA #"B" ; bat
-	STA rogue_enemy_t,X
-	LDA #$03
-	STA rogue_enemy_h,X
-	LDA #$02
-	STA rogue_enemy_d,X
-	LDA #$03
-	STA rogue_enemy_e,X
-	JMP rogue_populate_increment
-rogue_populate_goblin
-	LDA #"G" ; goblin
-	STA rogue_enemy_t,X
-	LDA #$05
-	STA rogue_enemy_h,X
-	LDA #$05
-	STA rogue_enemy_d,X
-	LDA #$07
-	STA rogue_enemy_e,X
-	JMP rogue_populate_increment
-rogue_populate_hob
-	LDA #"H" ; hob
-	STA rogue_enemy_t,X
-	LDA #$08
-	STA rogue_enemy_h,X
-	LDA #$08
-	STA rogue_enemy_d,X
-	LDA #$0C
-	STA rogue_enemy_e,X
-	JMP rogue_populate_increment
-; put more here
+
 rogue_populate_increment
 	INX
 	CPX #$10
 	BEQ rogue_populate_exit
 	JMP rogue_populate_loop
 rogue_populate_exit
+	PLY
 	PLX
 	PLA
 	RTS
@@ -1122,10 +1096,10 @@ rogue_controls_move
 	BEQ rogue_controls_descend
 	CMP #$3A ; colon
 	BEQ rogue_controls_redraw
-	CMP #"."
-	BEQ rogue_controls_redraw
-	CMP #"+"
-	BEQ rogue_controls_redraw
+	;CMP #"."
+	;BEQ rogue_controls_redraw
+	;CMP #"+"
+	;BEQ rogue_controls_redraw
 	CMP #"#"
 	BEQ rogue_controls_dig
 	JMP rogue_controls_bounds
@@ -1725,10 +1699,10 @@ rogue_ai_bounds
 	JSR sub_read
 	CMP #$3A ; colon
 	BEQ rogue_ai_move
-	CMP #"."
-	BEQ rogue_ai_move
-	CMP #"+"
-	BEQ rogue_ai_move
+	;CMP #"."
+	;BEQ rogue_ai_move
+	;CMP #"+"
+	;BEQ rogue_ai_move
 	JMP rogue_ai_increment
 rogue_ai_move
 	LDA rogue_enemy_x,X
