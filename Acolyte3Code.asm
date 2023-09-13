@@ -203,11 +203,14 @@ printchar_storage	.EQU $02C7
 printchar_read		.EQU $02C8 ; 4 bytes long
 printchar_write		.EQU $02CC ; 4 bytes long
 
+selector_joy_prev	.EQU $02D2
+selector_position	.EQU $02D3
+
 colorchar_input		.EQU $02D0
 colorchar_output	.EQU $02D1
 
-selector_joy_prev	.EQU $02D2
-selector_position	.EQU $02D3
+monochar_input		.EQU $02D2
+monochar_output		.EQU $02D3
 
 ; unused memory here
 
@@ -437,17 +440,17 @@ rogue
 
 ; change these a bit!
 rogue_level_low
-	.BYTE $05,$14,$32,$64,$FF
+	.BYTE $05,$14,$32,$64,$C8,$FF,$FF,$FF
 rogue_level_high
-	.BYTE $00,$00,$00,$00,$FF
+	.BYTE $00,$00,$00,$00,$00,$03,$08,$FF
 rogue_enemy_type
-	.BYTE "F","B","G","H"
+	.BYTE "F","B","G","H","V","O","T","E"
 rogue_enemy_health
-	.BYTE $02,$03,$08,$0C
+	.BYTE $02,$03,$08,$0C,$18,$30,$60,$C0
 rogue_enemy_damage
-	.BYTE $00,$01,$04,$08
+	.BYTE $00,$01,$04,$08,$0C,$12,$1C,$24
 rogue_enemy_exp
-	.BYTE $01,$02,$06,$10
+	.BYTE $01,$02,$08,$10,$20,$40,$60,$80
 
 rogue_init
 	; setup stats here
@@ -477,8 +480,19 @@ rogue_init
 	STZ rogue_exp_level
 
 rogue_reset
-	LDA #$0C ; form feed
-	JSR printchar
+	LDY #$08 ; start of screen
+	LDX #$00
+	LDA #$00 ; clear color
+rogue_clearscreen_loop
+	STX sub_write+1
+	STY sub_write+2
+	JSR sub_write
+	INX
+	BNE rogue_clearscreen_loop
+	INY
+	CPY #$80 ; end of screen
+	BNE rogue_clearscreen_loop
+	
 	JSR rogue_clear
 	JSR rogue_walk
 ;	JSR rogue_location
@@ -908,7 +922,7 @@ rogue_populate_loop
 rogue_populate_finalize
 	CLC
 	JSR sub_random
-	AND #%00110000 ; change for more here
+	AND #%01110000 ; change for more here
 	CLC
 	ROR A
 	ROR A
@@ -1121,7 +1135,7 @@ rogue_controls_unbounded
 	LDA rogue_player_y
 	STA printchar_y
 	LDA #"@"
-	JSR printchar
+	JSR monochar
 	JSR rogue_menu
 	JMP rogue_controls_start
 rogue_controls_descend
@@ -1183,7 +1197,7 @@ rogue_controls_hole
 	LDA rogue_player_y
 	STA printchar_y
 	LDA #$3A ; colon
-	JSR printchar
+	JSR monochar
 	JMP rogue_controls_bounds
 
 
@@ -1785,7 +1799,7 @@ rogue_light_enemies
 rogue_light_enemies_print
 	STA printchar_foreground
 	LDA rogue_enemy_t,X
-	JSR printchar
+	JSR monochar
 	LDA #$FF
 	STA printchar_foreground
 	JMP rogue_light_check
@@ -1830,13 +1844,13 @@ rogue_light_enemies_increment
 	STA printchar_foreground
 rogue_light_grey
 	JSR sub_read
-	JSR printchar
+	JSR monochar
 	LDA #$FF
 	STA printchar_foreground
 	JMP rogue_light_check
 rogue_light_floor
 	PLA
-	JSR printchar
+	JSR monochar
 	LDA #$FF
 	STA printchar_foreground
 	JMP rogue_light_check
@@ -1998,7 +2012,7 @@ rogue_enemy_draw_bright
 	LDA rogue_enemy_y,X
 	STA printchar_y
 	LDA rogue_enemy_t,X
-	JSR printchar
+	JSR monochar
 	LDA #$FF
 	STA printchar_foreground
 rogue_enemy_draw_exit
@@ -2023,7 +2037,7 @@ rogue_menu_loop
 	BEQ rogue_menu_exit
 	CMP #$20 ; space
 	BEQ rogue_menu_skip
-	JSR printchar
+	JSR monochar
 	JMP rogue_menu_increment
 rogue_menu_skip
 	INC printchar_x
@@ -2092,14 +2106,14 @@ rogue_menu_number_zeros
 	BCS rogue_menu_number_print
 	PHA
 	LDA #"0"
-	JSR printchar
+	JSR monochar
 	PLA
 	CLC
 	CMP #$0A
 	BCS rogue_menu_number_print
 	PHA
 	LDA #"0"
-	JSR printchar
+	JSR monochar
 	PLA
 	JMP rogue_menu_number_print
 rogue_menu_number
@@ -2115,7 +2129,7 @@ rogue_menu_number
 	INC printchar_x
 rogue_menu_number_print
 	PHY
-	JSR basic_print_unsigned
+	JSR mononum
 	PLY
 	RTS
 
@@ -2145,7 +2159,7 @@ rogue_message_clear
 rogue_message_loop
 	JSR sub_index
 	BEQ rogue_message_break
-	JSR printchar
+	JSR monochar
 	INX
 	CPX #$3F
 	BCS rogue_message_break
@@ -2195,7 +2209,127 @@ rogue_gameover_text
 	.BYTE "Game "
 	.BYTE "Over",$00
 
+
+monochar ; 64-column characters in 4-color mode
+	PHA
+	PHX
+	PHY
+	PHA
+	LDA printchar_x
+	CLC
+	ROL A
+	STA printchar_write+1
+	LDA printchar_y
+	CLC
+	ROL A
+	CLC
+	ROL A
+	CLC
+	ADC #$08
+	STA printchar_write+2
+	PLA
+	SEC
+	SBC #$20
+	TAX
+	LDA #<key_bitmap
+	STA printchar_read+1
+	LDA #>key_bitmap
+	STA printchar_read+2
+	LDA printchar_x
+	CLC
+	CMP #$40
+	BCS monochar_exit
+monochar_lookup
+	CPX #$00
+	BEQ monochar_found
+	DEX
+	LDA printchar_read+1
+	CLC
+	ADC #$10
+	STA printchar_read+1
+	BNE monochar_lookup
+	INC printchar_read+2
+	JMP monochar_lookup
+monochar_found
+	LDX #$00
+monochar_loop
+	JSR printchar_read
+	AND printchar_foreground
+	JSR printchar_write
+	INX
+	INC printchar_read+1
+	INC printchar_write+1
+	JSR printchar_read
+	AND printchar_foreground
+	JSR printchar_write
+	INX
+	INC printchar_read+1
+	LDA printchar_write+1
+	CLC
+	ADC #$7F
+	STA printchar_write+1
+	BCC monochar_increment
+	INC printchar_write+2
+monochar_increment
+	CPX #$10
+	BNE monochar_loop
+monochar_exit
+	INC printchar_x
+	PLY	
+	PLX
+	PLA
+	RTS
+
+mononum ; converts hex to decimal value
+	PHY
+	PHX
+	PHA
+	LDX #$00
+mononum_100_count
+	TAY
+	SEC
+	SBC #$64 ; 100 in hex
+	INX
+	BCS mononum_100_count
+	DEX
+	TXA
+	CMP #$00
+	BEQ mononum_100_skip
+	CLC
+	ADC #"0"
+	JSR monochar
+mononum_100_skip
+	;INC printchar_x
+	TYA
+	LDX #$00
+mononum_10_count
+	TAY
+	SEC
+	SBC #$0A ; 10 in hex
+	INX
+	BCS mononum_10_count
+	DEX
+	TXA
+	CMP #$00
+	BEQ mononum_10_skip
+	CLC
+	ADC #"0"
+	JSR monochar
+mononum_10_skip
+	;INC printchar_x
+	TYA
+	CLC
+	ADC #"0"
+	JSR monochar
+	;INC printchar_x
+	PLA
+	PLX
+	PLY
+	RTS
+
 	
+
+
 
 
 

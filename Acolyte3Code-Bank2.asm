@@ -192,11 +192,14 @@ printchar_storage	.EQU $02C7
 printchar_read		.EQU $02C8 ; 4 bytes long
 printchar_write		.EQU $02CC ; 4 bytes long
 
+selector_joy_prev	.EQU $02D2
+selector_position	.EQU $02D3
+
 colorchar_input		.EQU $02D0
 colorchar_output	.EQU $02D1
 
-selector_joy_prev	.EQU $02D2
-selector_position	.EQU $02D3
+monochar_input		.EQU $02D2
+monochar_output		.EQU $02D3
 
 ; unused memory here
 
