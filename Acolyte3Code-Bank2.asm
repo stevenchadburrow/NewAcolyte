@@ -201,6 +201,8 @@ colorchar_output	.EQU $02D1
 monochar_input		.EQU $02D2
 monochar_output		.EQU $02D3
 
+displaynum_mode		.EQU $02D4
+
 ; unused memory here
 
 ; memory from $0300 to $04FF is available for any program
@@ -361,35 +363,50 @@ galian_particle_dx	.EQU $04B0 ; 16 bytes
 galian_star_x		.EQU $04C0 ; 16 bytes
 galian_star_y		.EQU $04D0 ; 16 bytes
 
-rogue_player_x		.EQU $0300 ; reusing memory
-rogue_player_y		.EQU $0301
-rogue_stairs_x		.EQU $0302
-rogue_stairs_y		.EQU $0303
-rogue_check_x		.EQU $0304
-rogue_check_y		.EQU $0305
-rogue_location_x	.EQU $0306
-rogue_location_y	.EQU $0307
-rogue_walk_low		.EQU $0308
-rogue_walk_high		.EQU $0309
-rogue_distance		.EQU $030A
-rogue_lamp		.EQU $030B
-rogue_pickaxe		.EQU $030C
-rogue_potions		.EQU $030D
-rogue_bombs		.EQU $030E
-rogue_attack		.EQU $030F
-rogue_defense		.EQU $0310
-rogue_health		.EQU $0311
-rogue_health_max	.EQU $0312
-rogue_food_low		.EQU $0313
-rogue_food_high		.EQU $0314
-rogue_level		.EQU $0315
-rogue_gold		.EQU $0316
-rogue_filter		.EQU $0317
-rogue_floor		.EQU $8000 ; 2K
-rogue_floor_end		.EQU $8700 ; last 4 lines
-rogue_items		.EQU $8800 ; 2K
-rogue_digged		.EQU $9000 ; 2K
-rogue_digged_end	.EQU $9800 ; end
+knave_player_x		.EQU $0300 ; reusing memory
+knave_player_y		.EQU $0301
+knave_stairs_x		.EQU $0302
+knave_stairs_y		.EQU $0303
+knave_check_x		.EQU $0304
+knave_check_y		.EQU $0305
+knave_location_x	.EQU $0306
+knave_location_y	.EQU $0307
+knave_walk_low		.EQU $0308
+knave_walk_high		.EQU $0309
+knave_distance		.EQU $030A
+knave_lamp		.EQU $030B
+knave_pickaxe		.EQU $030C
+knave_potions		.EQU $030D
+knave_bombs		.EQU $030E
+knave_attack		.EQU $030F
+knave_defense		.EQU $0310
+knave_health		.EQU $0311
+knave_health_max	.EQU $0312
+knave_food_low		.EQU $0313
+knave_food_high		.EQU $0314
+knave_level		.EQU $0315
+knave_gold		.EQU $0316
+knave_exp_low		.EQU $0317
+knave_exp_high		.EQU $0318
+knave_exp_level		.EQU $0319
+knave_dist_x		.EQU $031A
+knave_dist_y		.EQU $031B
+knave_text		.EQU $031C ; 2 bytes long
+knave_filter		.EQU $031E
+knave_joy_delay		.EQU $031F
+knave_joy_delay_init	.EQU $0320
+knave_enemy_x		.EQU $0400 ; 16 bytes long
+knave_enemy_y		.EQU $0410 ; 16 bytes long
+knave_enemy_h		.EQU $0420 ; 16 bytes long
+knave_enemy_t		.EQU $0430 ; 16 bytes long
+knave_enemy_d		.EQU $0440 ; 16 bytes long
+knave_enemy_e		.EQU $0450 ; 16 bytes long
+knave_floor		.EQU $8000 ; 2K
+knave_floor_end		.EQU $8700 ; last 4 lines
+knave_items		.EQU $8800 ; 2K
+knave_digged		.EQU $9000 ; 2K
+knave_digged_end	.EQU $9800 ; end
+
 
 
 
@@ -400,14 +417,14 @@ rogue_digged_end	.EQU $9800 ; end
 
 vector_reset
 
-;	JSR setup ; only needed for simulator
-
-	JMP selector
 
 	
 selector
 	LDA #$00
 	STA $FFFF ; turn on 16 color mode
+	
+	LDA #$01
+	STA displaynum_mode
 
 	LDY #$08 ; start of screen
 	LDX #$00
@@ -439,7 +456,7 @@ selector_draw
 	LDA #" "
 selector_skip
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INX
 	JMP selector_draw
 selector_loop
@@ -449,6 +466,7 @@ selector_loop
 	STA printchar_y
 	LDA #$3E ; greater than
 	JSR colorchar
+	DEC printchar_x
 	LDA joy_buttons
 	CMP selector_joy_prev
 	BEQ selector_keys
@@ -488,6 +506,7 @@ selector_joy_up
 selector_key_up
 	LDA #" "
 	JSR colorchar
+	DEC printchar_x
 	LDA selector_position
 	BEQ selector_keys
 	DEC selector_position
@@ -499,6 +518,7 @@ selector_joy_down
 selector_key_down
 	LDA #" "
 	JSR colorchar
+	DEC printchar_x
 	LDA selector_position
 	CLC
 	CMP #$10 ; 16 positions possible
@@ -522,32 +542,38 @@ selector_next1
 selector_next2
 	CMP #$02
 	BNE selector_next3
-	JMP mission
+	JMP missile
 selector_next3
 	CMP #$03
 	BNE selector_next4
 	JMP galian
 selector_next4
+	CMP #$04
+	BNE selector_next5
+	JMP knave
+selector_next5
 	NOP
 	JMP selector_loop
 
 selector_text
 	.BYTE "Select "
-	.BYTE "a Game "
-	.BYTE "to Play"
+	.BYTE "a Game"
 	.BYTE $0D
-	.BYTE "  "
+	.BYTE " "
 	.BYTE "Tetra"
 	.BYTE $0D
-	.BYTE "  "
+	.BYTE " "
 	.BYTE "Intruder"
 	.BYTE "s"
 	.BYTE $0D
-	.BYTE "  "
+	.BYTE " "
 	.BYTE "Missile"
 	.BYTE $0D
-	.BYTE "  "
+	.BYTE " "
 	.BYTE "Galian"
+	.BYTE $0D
+	.BYTE " "
+	.BYTE "Knave"
 	.BYTE $0D
 	.BYTE $00
 
@@ -558,8 +584,8 @@ tetra_color_fore	.EQU $77
 tetra_color_back	.EQU $AA
 	
 tetra
-	LDA #$00
-	STA $FFFF ; turn on 16 color mode
+;	LDA #$00
+;	STA $FFFF ; turn on 16 color mode
 	
 	STZ sub_write+1				; clear out all screen RAM 
 	LDA #$08
@@ -1234,7 +1260,7 @@ tetra_display_loop_level
 	LDA #$03
 	STA printchar_y
 	LDA tetra_score_high
-	JSR colornum
+	JSR displaynum
 	LDA #$19
 	STA printchar_x
 	LDA #$06
@@ -1251,7 +1277,7 @@ tetra_display_loop_lines
 	LDA #$08
 	STA printchar_y
 	LDA tetra_score_low
-	JSR colornum
+	JSR displaynum
 	LDA #$19
 	STA printchar_x
 	LDA #$0B
@@ -1315,7 +1341,7 @@ tetra_display_exit
 	RTS
 tetra_display_char
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	RTS
 
 tetra_display_text_level
@@ -1506,8 +1532,8 @@ intruders_color_missile		.EQU $DD ; constant
 intruders_color_mystery		.EQU $FF ; constant
 
 intruders
-	LDA #$00
-	STA $FFFF ; turn on 16 color mode
+;	LDA #$00
+;	STA $FFFF ; turn on 16 color mode
 
 	JMP intruders_init
 
@@ -2470,20 +2496,20 @@ intruders_draw_menu
 	STA printchar_x
 	LDA #$00
 	STA printchar_y
-	LDA intruders_points_low ; needs colornum to not display hundreds digit if zero!!!
-	JSR colornum
+	LDA intruders_points_low ; needs displaynum to not display hundreds digit if zero!!!
+	JSR displaynum
 	LDA #$01
 	STA printchar_x
 	LDA #$00
 	STA printchar_y
 	LDA intruders_points_high
-	JSR colornum
+	JSR displaynum
 	LDA #$3C
 	STA printchar_x
 	LDA #$00
 	STA printchar_y
 	LDA intruders_player_lives
-	JSR colornum
+	JSR displaynum
 	RTS
 
 
@@ -2697,7 +2723,7 @@ intruders_pause_draw
 intruders_pause_draw_loop
 	LDA intruders_pause_text,Y
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$06
 	BNE intruders_pause_draw_loop
@@ -2712,7 +2738,7 @@ intruders_pause_clear
 intruders_pause_clear_loop
 	LDA #" "
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$06
 	BNE intruders_pause_clear_loop
@@ -2727,7 +2753,7 @@ intruders_gameover_draw
 intruders_gameover_draw_loop
 	LDA intruders_gameover_text,Y
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$09
 	BNE intruders_gameover_draw_loop
@@ -2810,9 +2836,10 @@ intruders_enemy_data4
 
 
 
-mission
-	LDA #$00
-	STA $FFFF ; turn on 16 color mode
+missile
+;	LDA #$00
+;	STA $FFFF ; turn on 16 color mode
+
 	STZ missile_paused
 	LDA #$0A ; arbitrary amount of initial population
 	STA missile_pop_value
@@ -2970,25 +2997,25 @@ missile_input_continue
 	LDA #$1D
 	STA printchar_y
 	LDA missile_pop_value
-	JSR colornum
+	JSR displaynum
 	LDA #$0E
 	STA printchar_x
 	LDA #$1D
 	STA printchar_y
 	LDA missile_ammo_value
-	JSR colornum
+	JSR displaynum
 	LDA #$1C
 	STA printchar_x
 	LDA #$1D
 	STA printchar_y
 	LDA missile_score_low
-	JSR colornum
+	JSR displaynum
 	LDA #$1A
 	STA printchar_x
 	LDA #$1D
 	STA printchar_y
 	LDA missile_score_high
-	JSR colornum
+	JSR displaynum
 	CLC
 	JSR sub_random
 	CLC
@@ -3012,7 +3039,7 @@ missile_gameover
 missile_gameover_end_loop
 	LDA missile_end_text,Y
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$07
 	BNE missile_gameover_end_loop
@@ -3043,7 +3070,7 @@ missile_gameover_check
 	BNE missile_gameover_reset
 	JMP missile_gameover_postloop
 missile_gameover_reset
-	JMP mission
+	JMP missile
 
 missile_player
 	PHA
@@ -3348,7 +3375,7 @@ missile_keyboard_pause_start
 missile_keyboard_pause_start_loop
 	LDA missile_pause_text,Y
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$06
 	BNE missile_keyboard_pause_start_loop
@@ -3364,7 +3391,7 @@ missile_keyboard_pause_stop
 missile_keyboard_pause_stop_loop
 	LDA #" "
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$06
 	BNE missile_keyboard_pause_stop_loop
@@ -4315,8 +4342,8 @@ missile_pause_text
 
 	
 galian
-	LDA #$00 ; produces 16-colors
-	STA $FFFF 
+;	LDA #$00 ; produces 16-colors
+;	STA $FFFF 
 
 	JMP galian_start
 
@@ -5768,7 +5795,7 @@ galian_draw_pause
 galian_draw_pause_loop
 	LDA galian_pause_text,Y
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$06
 	BNE galian_draw_pause_loop
@@ -5783,7 +5810,7 @@ galian_clear_pause
 galian_clear_pause_loop
 	LDA #" "
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$06
 	BNE galian_clear_pause_loop
@@ -5798,7 +5825,7 @@ galian_draw_gameover
 galian_draw_gameover_loop
 	LDA galian_gameover_text,Y
 	JSR colorchar
-	INC printchar_x
+	;INC printchar_x
 	INY
 	CPY #$09
 	BNE galian_draw_gameover_loop
@@ -5815,22 +5842,1946 @@ galian_draw_menu
 	STA printchar_x
 	LDA #$00
 	STA printchar_y
-	LDA galian_score_low ; needs colornum to not display hundreds digit if zero!!!
-	JSR colornum
+	LDA galian_score_low ; needs displaynum to not display hundreds digit if zero!!!
+	JSR displaynum
 	LDA #$01
 	STA printchar_x
 	LDA #$00
 	STA printchar_y
 	LDA galian_score_high
-	JSR colornum
+	JSR displaynum
 	LDA #$3C
 	STA printchar_x
 	LDA #$00
 	STA printchar_y
 	LDA galian_player_lives
-	JSR colornum
+	JSR displaynum
 	RTS	
 
+
+
+knave
+	LDA #$91 ; produces red and dark grey
+	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
+
+	STZ displaynum_mode
+
+	JMP knave_init
+
+; change these a bit!
+knave_level_low
+	.BYTE $05,$14,$32,$64,$C8,$FF,$FF,$FF
+knave_level_high
+	.BYTE $00,$00,$00,$00,$00,$03,$08,$FF
+knave_enemy_type
+	.BYTE "F","B","G","H","V","O","T","E"
+knave_enemy_health
+	.BYTE $02,$03,$08,$0C,$18,$30,$60,$C0
+knave_enemy_damage
+	.BYTE $00,$01,$04,$08,$0C,$12,$1C,$24
+knave_enemy_exp
+	.BYTE $01,$02,$08,$10,$20,$40,$60,$80
+
+knave_init
+	; setup stats here
+	LDA #$02 ; should start with $02
+	STA knave_lamp
+	LDA #$01
+	STA knave_pickaxe
+	LDA #$02
+	STA knave_potions
+	LDA #$02
+	STA knave_bombs
+	LDA #$01
+	STA knave_attack
+	LDA #$01
+	STA knave_defense
+	LDA #$0A ; should start with $0A
+	STA knave_health
+	STA knave_health_max
+	LDA #$32
+	STA knave_food_low
+	STA knave_food_high
+	LDA #$01 ; should start with $01
+	STA knave_level	
+	STZ knave_gold
+	STZ knave_exp_low
+	STZ knave_exp_high
+	STZ knave_exp_level
+	STZ knave_joy_delay
+	STZ knave_joy_delay_init
+
+knave_reset
+	LDY #$08 ; start of screen
+	LDX #$00
+	LDA #$00 ; clear color
+knave_clearscreen_loop
+	STX sub_write+1
+	STY sub_write+2
+	JSR sub_write
+	INX
+	BNE knave_clearscreen_loop
+	INY
+	CPY #$80 ; end of screen
+	BNE knave_clearscreen_loop
+	
+	JSR knave_clear
+	JSR knave_walk
+;	JSR knave_location
+	JSR knave_populate
+	JSR knave_blast
+	JSR knave_controls
+
+
+knave_clear
+	PHA
+	LDA #<knave_floor
+	STA sub_write+1
+	LDA #>knave_floor
+	STA sub_write+2
+knave_clear_loop_floor
+	LDA #"#" ; wall value
+	JSR sub_write
+	INC sub_write+1
+	BNE knave_clear_loop_floor
+	INC sub_write+2
+	LDA sub_write+2
+	CMP #>knave_items
+	BNE knave_clear_loop_floor
+knave_clear_loop_items
+	CLC
+	JSR sub_random
+	AND #%00111111
+	BEQ knave_clear_loop_items_value
+	LDA #$00
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_value
+	CLC
+	JSR sub_random
+	AND #%00000111 ; change amount here
+	BEQ knave_clear_loop_items_zero
+	CMP #$01
+	BEQ knave_clear_loop_items_one
+	CMP #$02
+	BEQ knave_clear_loop_items_two
+	CMP #$03
+	BEQ knave_clear_loop_items_three
+	CMP #$04
+	BEQ knave_clear_loop_items_four
+	CMP #$05
+	BEQ knave_clear_loop_items_five
+	CMP #$06
+	BEQ knave_clear_loop_items_six
+	CMP #$07
+	BEQ knave_clear_loop_items_seven
+; put more here
+	LDA #$00 ; nothing
+	JMP knave_clear_loop_items_store 
+knave_clear_loop_items_zero
+	LDA #"!" ; potion
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_one
+	LDA #"*" ; bomb
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_two
+	LDA #"(" ; attack up
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_three
+	LDA #"[" ; defense up
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_four
+	LDA #"%" ; food
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_five
+	LDA #"i" ; lamp
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_six
+	LDA #"p" ; pickaxe
+	JMP knave_clear_loop_items_store
+knave_clear_loop_items_seven
+	LDA #"$" ; gold
+	JMP knave_clear_loop_items_store
+; put more here
+knave_clear_loop_items_store
+	JSR sub_write
+	CMP #$00
+	BEQ knave_clear_loop_items_skip
+	LDA sub_write+1
+	STA sub_read+1
+	LDA sub_write+2
+	PHA
+	SEC
+	SBC #$08 ; now in 'floor' memory
+	STA sub_write+2
+	STA sub_read+2
+	JSR sub_read
+	CMP #"#" ; wall
+	BNE knave_clear_loop_items_floor
+	LDA #$3A ; colon
+	JSR sub_write
+knave_clear_loop_items_floor
+	PLA
+	STA sub_write+2
+knave_clear_loop_items_skip
+	INC sub_write+1
+	BNE knave_clear_loop_items_jump
+	INC sub_write+2
+	LDA sub_write+2
+	CMP #>knave_digged
+	BNE knave_clear_loop_items_jump
+	JMP knave_clear_loop_digged
+knave_clear_loop_items_jump
+	JMP knave_clear_loop_items
+knave_clear_loop_digged
+	LDA #$10 ; arbitrary hardness of stone
+	JSR sub_write
+	INC sub_write+1
+	BNE knave_clear_loop_digged
+	INC sub_write+2
+	LDA sub_write+2
+	CMP #>knave_digged_end
+	BNE knave_clear_loop_digged
+	PLA
+	RTS
+
+
+knave_walk
+	PHA
+	STZ knave_walk_low
+	STZ knave_walk_high
+	CLC
+	JSR sub_random
+	AND #%00111111
+	STA knave_player_x
+	STA knave_stairs_x
+knave_walk_random
+	CLC
+	JSR sub_random
+	AND #%00011111
+	CLC
+	CMP #$1C
+	BCS knave_walk_random
+	STA knave_player_y
+	STA knave_stairs_y
+	JMP knave_walk_loop
+knave_walk_direction
+	CLC
+	JSR sub_random
+	AND #%00000011
+	BEQ knave_walk_move_up
+	CMP #$01
+	BEQ knave_walk_move_down
+	CMP #$02
+	BEQ knave_walk_move_left	
+	BNE knave_walk_move_right
+knave_walk_move_up
+	LDA knave_stairs_y
+	BEQ knave_walk_direction
+	DEC knave_stairs_y
+	JMP knave_walk_loop
+knave_walk_move_down
+	LDA knave_stairs_y
+	CMP #$1B
+	BEQ knave_walk_direction
+	INC knave_stairs_y
+	JMP knave_walk_loop
+knave_walk_move_left
+	LDA knave_stairs_x
+	CMP #$00
+	BEQ knave_walk_direction
+	DEC knave_stairs_x
+	JMP knave_walk_loop
+knave_walk_move_right
+	LDA knave_stairs_x
+	CMP #$3F
+	BEQ knave_walk_direction
+	INC knave_stairs_x
+knave_walk_loop
+	LDA knave_stairs_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_stairs_x
+	STA sub_read+1
+	STA sub_write+1
+	LDA knave_stairs_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_read+2
+	STA sub_write+2
+	JSR sub_read
+	PHA
+	LDA #$3A ; colon
+	JSR sub_write
+	PLA
+	CMP #$3A ; colon
+	BEQ knave_walk_increment
+	INC knave_walk_low
+	BNE knave_walk_increment
+	INC knave_walk_high
+	LDA knave_walk_high
+	CLC
+	CMP #$02
+	BCS knave_walk_exit
+knave_walk_increment
+	JMP knave_walk_direction
+knave_walk_exit
+	LDA #$3C
+	JSR sub_write
+	PLA
+	RTS
+
+
+
+;knave_location
+;	PHA
+;	PHX
+;	PHY
+;	LDA #<knave_location_data
+;	STA sub_index+1
+;	LDA #>knave_location_data
+;	STA sub_index+2
+;	CLC
+;	JSR sub_random
+;	AND #%11000000 
+;	CLC
+;	ADC sub_index+1
+;	STA sub_index+1
+;	BCC knave_location_random
+;	INC sub_index+2
+;knave_location_random
+;	CLC
+;	JSR sub_random
+;	AND #%00111111
+;	CLC
+;	CMP #$38
+;	BCS knave_location_random
+;	STA knave_location_x
+;	STA knave_check_x
+;	CLC
+;	JSR sub_random
+;	AND #%00011111
+;	STA knave_location_y
+;	STA knave_check_y
+;	CLC
+;	CMP #$14
+;	BCS knave_location_random
+;	LDX #$00
+;	LDY #$00
+;knave_location_player
+;	LDA knave_check_x
+;	CMP knave_player_x
+;	BNE knave_location_stairs
+;	LDA knave_check_y
+;	CMP knave_player_y
+;	BNE knave_location_stairs
+;	JMP knave_location_random
+;knave_location_stairs
+;	LDA knave_check_x
+;	CMP knave_stairs_x
+;	BNE knave_location_increment
+;	LDA knave_check_y
+;	CMP knave_stairs_y
+;	BNE knave_location_increment
+;	JMP knave_location_random
+;knave_location_increment
+;	INC knave_check_x
+;	INX
+;	INY
+;	CPX #$40
+;	BEQ knave_location_ready
+;	CPY #$08
+;	BNE knave_location_player
+;	LDY #$00
+;	LDA knave_check_x
+;	SEC
+;	SBC #$08
+;	STA knave_check_x
+;	INC knave_check_y
+;	JMP knave_location_player
+;knave_location_ready
+;	LDA knave_location_x
+;	STA knave_check_x
+;	LDA knave_location_y
+;	STA knave_check_y
+;	LDX #$00
+;	LDY #$00
+;knave_location_loop
+;	LDA knave_check_y
+;	AND #%00000011
+;	CLC
+;	ROR A
+;	ROR A
+;	ROR A
+;	CLC
+;	ADC knave_check_x
+;	STA sub_write+1
+;	STA sub_read+1
+;	LDA knave_check_y
+;	AND #%00011100
+;	CLC
+;	ROR A
+;	ROR A
+;	CLC
+;	ADC #>knave_floor
+;	STA sub_write+2
+;	CLC
+;	ADC #$08 ; now in 'items' memory
+;	STA sub_read+2
+;	JSR sub_read
+;	BEQ knave_location_write
+;	LDA sub_write+2
+;	PHA
+;	CLC
+;	ADC #$08 ; now in 'items' memory
+;	STA sub_write+2
+;	LDA #$00
+;	JSR sub_write
+;	PLA
+;	STA sub_write+2
+;knave_location_write
+;	JSR sub_index
+;	JSR sub_write
+;	INC knave_check_x
+;	INX
+;	INY
+;	CPX #$40
+;	BEQ knave_location_exit
+;	CPY #$08
+;	BNE knave_location_loop
+;	LDY #$00
+;	LDA knave_check_x
+;	SEC
+;	SBC #$08
+;	STA knave_check_x
+;	INC knave_check_y
+;	JMP knave_location_loop
+;knave_location_exit
+;	LDA knave_player_x ; just in case
+;	STA knave_check_x
+;	LDA knave_player_y
+;	STA knave_check_y
+;	PLY
+;	PLX
+;	PLA
+;	RTS
+
+;knave_location_data
+;	.BYTE "--------"
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE "---++---"
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE "+......+"
+;	.BYTE "--------"
+
+;	.BYTE "^^....^^"
+;	.BYTE "^......^"
+;	.BYTE "........"
+;	.BYTE "...^^..."
+;	.BYTE "...^^..."
+;	.BYTE "........"
+;	.BYTE "^......^"
+;	.BYTE "^^....^^"
+
+;	.BYTE "---++---"
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE $7C,"......",$7C
+;	.BYTE "---++---"
+
+;	.BYTE $3A,$3A,$3A,"..",$3A,$3A,$3A
+;	.BYTE $3A,$3A,"0..0",$3A,$3A
+;	.BYTE $3A,"0....0",$3A
+;	.BYTE "........"
+;	.BYTE "........"
+;	.BYTE $3A,"0....0",$3A
+;	.BYTE $3A,$3A,"0..0",$3A,$3A
+;	.BYTE $3A,$3A,$3A,"..",$3A,$3A,$3A
+
+
+knave_populate
+	PHA
+	PHX
+	PHY
+	LDX #$00
+knave_populate_loop
+	CLC
+	JSR sub_random
+	AND #%00111111
+	STA knave_enemy_x,X
+	CLC
+	JSR sub_random
+	AND #%00011111
+	STA knave_enemy_y,X
+	CLC
+	CMP #$1C
+	BCS knave_populate_loop
+	LDA knave_enemy_y,X
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_enemy_x,X
+	STA sub_read+1
+	LDA knave_enemy_y,X
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_read+2
+	JSR sub_read
+	CMP #$3A ; colon
+	BEQ knave_populate_finalize
+	;CMP #"."
+	;BEQ knave_populate_finalize
+	JMP knave_populate_loop
+knave_populate_finalize
+	CLC
+	JSR sub_random
+	AND #%01110000 ; change for more here
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	CMP knave_level
+	BCS knave_populate_finalize
+
+	TAY
+	LDA knave_enemy_type,Y
+	STA knave_enemy_t,X
+	LDA knave_enemy_health,Y
+	STA knave_enemy_h,X
+	LDA knave_enemy_damage,Y
+	STA knave_enemy_d,X
+	LDA knave_enemy_exp,Y
+	STA knave_enemy_e,X
+
+knave_populate_increment
+	INX
+	CPX #$10
+	BEQ knave_populate_exit
+	JMP knave_populate_loop
+knave_populate_exit
+	PLY
+	PLX
+	PLA
+	RTS
+
+
+
+knave_controls
+	JSR knave_menu
+	JMP knave_controls_move
+knave_controls_start
+	CLC
+	JSR sub_random ; for more randomization
+	JSR knave_joy
+	CMP #$00
+	BEQ knave_controls_keys
+	JMP knave_controls_change
+knave_controls_keys
+	JSR inputchar
+	CMP #$00
+	BEQ knave_controls_start
+knave_controls_change
+	PHA
+	LDA knave_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_player_x
+	STA sub_read+1
+	LDA knave_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_read+2
+	LDA knave_player_x
+	STA knave_check_x
+	STA printchar_x
+	LDA knave_player_y
+	STA knave_check_y
+	STA printchar_y
+	LDA knave_food_low
+	SEC
+	SBC #$04 ; arbitrary hunger amount
+	STA knave_food_low
+	BCS knave_controls_food
+	DEC knave_food_high
+	BNE knave_controls_food
+	JMP knave_gameover
+knave_controls_food
+	PLA
+	CMP #$11 ; arrow up
+	BEQ knave_controls_up
+	CMP #"W"
+	BEQ knave_controls_up
+	CMP #"w"
+	BEQ knave_controls_up
+	CMP #$12 ; arrow down
+	BEQ knave_controls_down
+	CMP #"S"
+	BEQ knave_controls_down
+	CMP #"s"
+	BEQ knave_controls_down	
+	CMP #$13 ; arrow left
+	BEQ knave_controls_left
+	CMP #"A"
+	BEQ knave_controls_left
+	CMP #"a"
+	BEQ knave_controls_left
+	CMP #$14 ; arrow right
+	BEQ knave_controls_right
+	CMP #"D"
+	BEQ knave_controls_right
+	CMP #"d"
+	BEQ knave_controls_right
+	CMP #$20 ; space
+	BEQ knave_controls_bomb
+	CMP #"Q"
+	BEQ knave_controls_bomb
+	CMP #"q"
+	BEQ knave_controls_bomb
+	CMP #"0" ; zero
+	BEQ knave_controls_potion
+	CMP #"E"
+	BEQ knave_controls_potion
+	CMP #"e"
+	BEQ knave_controls_potion
+	CMP #$1B ; escape
+	BEQ knave_controls_escape
+	CMP #$15 ; F12
+	BEQ knave_controls_move
+; put more here
+	JMP knave_controls_move
+knave_controls_up
+	LDA knave_player_y
+	BEQ knave_controls_move
+	DEC knave_player_y
+	JMP knave_controls_move
+knave_controls_down
+	LDA knave_player_y
+	CMP #$1B
+	BEQ knave_controls_move
+	INC knave_player_y
+	JMP knave_controls_move
+knave_controls_left
+	LDA knave_player_x
+	BEQ knave_controls_move
+	DEC knave_player_x
+	JMP knave_controls_move
+knave_controls_right
+	LDA knave_player_x
+	CMP #$3F
+	BEQ knave_controls_move
+	INC knave_player_x
+	JMP knave_controls_move
+knave_controls_bomb
+	LDA knave_bombs
+	BEQ knave_controls_move
+	DEC knave_bombs
+	JSR knave_blast
+	JMP knave_controls_move
+knave_controls_potion
+	LDA knave_potions
+	BEQ knave_controls_move
+	DEC knave_potions
+	LDA knave_health_max
+	CLC
+	ROR A
+	CLC
+	ADC knave_health
+	STA knave_health
+	CLC
+	CMP knave_health_max
+	BCC knave_controls_move
+	LDA knave_health_max
+	STA knave_health
+	JMP knave_controls_move
+knave_controls_escape
+	JMP knave_gameover_exit ; exit
+; put more here
+knave_controls_move
+	LDA knave_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_player_x
+	STA sub_read+1
+	LDA knave_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_read+2
+	JSR sub_read
+	CMP #$3C ; less than
+	BEQ knave_controls_descend
+	CMP #$3A ; colon
+	BEQ knave_controls_redraw
+	;CMP #"."
+	;BEQ knave_controls_redraw
+	;CMP #"+"
+	;BEQ knave_controls_redraw
+	CMP #"#"
+	BEQ knave_controls_dig
+	JMP knave_controls_bounds
+knave_controls_redraw
+	JSR knave_collide
+	CMP #$00
+	BEQ knave_controls_unbounded
+knave_controls_bounds
+	LDA knave_check_x
+	STA knave_player_x
+	LDA knave_check_y
+	STA knave_player_y
+knave_controls_unbounded
+	JSR knave_pickup
+	JSR knave_ai
+	JSR knave_light
+	LDA knave_player_x
+	STA printchar_x
+	LDA knave_player_y
+	STA printchar_y
+	LDA #"@"
+	JSR monochar
+	JSR knave_menu
+	JMP knave_controls_start
+knave_controls_descend
+	INC knave_level
+	LDA knave_level	
+	CMP #$0A
+	BEQ knave_controls_win
+	JMP knave_reset
+knave_controls_win
+	JMP knave_win
+knave_controls_dig
+	LDA knave_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_player_x
+	STA sub_read+1
+	STA sub_write+1
+	LDA knave_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_digged
+	STA sub_read+2
+	STA sub_write+2
+	JSR sub_read
+	SEC
+	SBC knave_pickaxe
+	JSR sub_write
+	BEQ knave_controls_hole
+	CLC
+	CMP #$80
+	BCS knave_controls_hole
+	JMP knave_controls_bounds
+knave_controls_hole
+	LDA #$00
+	JSR sub_write
+	LDA knave_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_player_x
+	STA sub_write+1
+	LDA knave_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_write+2
+	LDA #$3A ; colon
+	JSR sub_write
+	LDA knave_player_x
+	STA printchar_x
+	LDA knave_player_y
+	STA printchar_y
+	LDA #$3A ; colon
+	JSR monochar
+	JMP knave_controls_bounds
+
+
+knave_joy ; returns ASCII equivalent
+	LDA joy_buttons
+	CMP #$FF
+	BNE knave_joy_continue
+	LDA #$80 ; arbitrary init delay
+	STA knave_joy_delay_init
+	STZ knave_joy_delay
+	LDA #$00
+	RTS
+knave_joy_continue
+	LDA knave_joy_delay
+	BEQ knave_joy_check
+	DEC knave_joy_delay
+	LDA #$00
+	RTS
+knave_joy_check
+	DEC knave_joy_delay ; makes it $FF
+	LDA knave_joy_delay_init
+	BEQ knave_joy_next0
+	DEC knave_joy_delay_init
+	CMP #$80 ; arbitrary init delay
+	BEQ knave_joy_next0
+	LDA #$00
+	RTS
+knave_joy_next0
+	LDA joy_buttons
+	AND #%00000001
+	BNE knave_joy_next1
+	LDA #$11 ; arrow up
+	RTS
+knave_joy_next1
+	LDA joy_buttons
+	AND #%00000010
+	BNE knave_joy_next2
+	LDA #$12 ; arrow down
+	RTS
+knave_joy_next2
+	LDA joy_buttons
+	AND #%00000100
+	BNE knave_joy_next3
+	LDA #$13 ; arrow down
+	RTS
+knave_joy_next3
+	LDA joy_buttons
+	AND #%00001000
+	BNE knave_joy_next4
+	LDA #$14 ; arrow down
+	RTS
+knave_joy_next4
+	LDA joy_buttons
+	AND #%00010000
+	BNE knave_joy_next5
+	LDA #"0" ; potion
+	RTS
+knave_joy_next5
+	LDA joy_buttons
+	AND #%00100000
+	BNE knave_joy_next6
+	LDA #$20 ; space, bomb
+	RTS
+knave_joy_next6
+	LDA #$80 ; arbitrary init delay
+	STA knave_joy_delay_init
+	LDA #$00
+	RTS
+
+
+knave_pickup
+	PHA
+	LDA knave_player_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_player_x
+	STA sub_read+1
+	LDA knave_player_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_items
+	STA sub_read+2
+	JSR sub_read
+	CMP #"!" ; potion
+	BEQ knave_pickup_zero
+	CMP #"*" ; bomb
+	BEQ knave_pickup_one
+	CMP #"(" ; attack up
+	BEQ knave_pickup_two
+	CMP #"[" ; defense up
+	BEQ knave_pickup_three
+	CMP #"%" ; food
+	BEQ knave_pickup_four
+	CMP #"i" ; lamp
+	BEQ knave_pickup_five
+	CMP #"p" ; pickaxe
+	BEQ knave_pickup_six
+	CMP #"$" ; gold
+	BEQ knave_pickup_seven
+; put more here
+	JMP knave_pickup_clear
+knave_pickup_zero
+	INC knave_potions
+	JMP knave_pickup_zero_check
+knave_pickup_one
+	INC knave_bombs
+	JMP knave_pickup_one_check
+knave_pickup_two
+	INC knave_attack
+	JMP knave_pickup_two_check
+knave_pickup_three
+	INC knave_defense
+	JMP knave_pickup_three_check
+knave_pickup_four
+	LDA knave_food_high
+	CLC
+	ADC #$0A
+	STA knave_food_high
+	JMP knave_pickup_clear
+knave_pickup_five
+	INC knave_lamp
+	JMP knave_pickup_five_check
+knave_pickup_six
+	INC knave_pickaxe
+	JMP knave_pickup_six_check
+knave_pickup_seven
+	INC knave_gold
+	JMP knave_pickup_clear
+; put more here
+knave_pickup_zero_check
+	LDA knave_potions
+	CLC
+	CMP #$09 ; max potions
+	BCC knave_pickup_zero_skip
+	LDA #$09
+	STA knave_potions
+	INC knave_gold
+knave_pickup_zero_skip
+	JMP knave_pickup_clear
+knave_pickup_one_check
+	LDA knave_bombs
+	CLC
+	CMP #$09 ; max bombs
+	BCC knave_pickup_one_skip
+	LDA #$09
+	STA knave_bombs
+	INC knave_gold
+knave_pickup_one_skip
+	JMP knave_pickup_clear
+knave_pickup_two_check
+	LDA knave_attack
+	CLC
+	CMP #$09 ; max attack power
+	BCC knave_pickup_two_skip
+	LDA #$09
+	STA knave_attack
+	INC knave_gold
+knave_pickup_two_skip
+	JMP knave_pickup_clear
+knave_pickup_three_check
+	LDA knave_defense
+	CLC
+	CMP #$09 ; max defense power
+	BCC knave_pickup_three_skip
+	LDA #$09
+	STA knave_defense
+	INC knave_gold
+knave_pickup_three_skip
+	JMP knave_pickup_clear
+knave_pickup_five_check
+	LDA knave_lamp
+	CLC
+	CMP #$06 ; max lamp power
+	BCC knave_pickup_five_skip
+	LDA #$06
+	STA knave_lamp
+	INC knave_gold
+knave_pickup_five_skip
+	JMP knave_pickup_clear
+knave_pickup_six_check
+	LDA knave_pickaxe
+	CLC
+	CMP #$10 ; max pickaxe power
+	BCC knave_pickup_six_skip
+	LDA #$10
+	STA knave_pickaxe
+	INC knave_gold
+knave_pickup_six_skip
+	JMP knave_pickup_clear
+knave_pickup_clear
+	LDA sub_read+1
+	STA sub_write+1
+	LDA sub_read+2
+	STA sub_write+2
+	LDA #$00
+	JSR sub_write
+	JSR knave_menu
+	PLA
+	RTS
+
+
+knave_collide ; returns A = $00 no collision
+	PHX
+	PHY
+	LDX #$00
+	LDY #$00
+knave_collide_loop 
+	LDA knave_enemy_h,X
+	BEQ knave_collide_increment
+	LDA knave_player_x
+	CMP knave_enemy_x,X
+	BNE knave_collide_increment 
+	LDA knave_player_y
+	CMP knave_enemy_y,X
+	BNE knave_collide_increment
+	INY
+	LDA knave_enemy_h,X
+	SEC
+	SBC knave_attack
+	STA knave_enemy_h,X
+	BCS knave_collide_check
+	STZ knave_enemy_h,X
+knave_collide_check
+	LDA knave_enemy_h,X
+	BNE knave_collide_increment
+	JSR knave_collide_drop
+	LDA knave_exp_low
+	CLC	
+	ADC knave_enemy_e,X
+	STA knave_exp_low
+	BCC knave_collide_levelup
+	INC knave_exp_high
+knave_collide_levelup
+	PHX
+	LDX knave_exp_level
+	LDA knave_exp_high
+	CLC
+	CMP knave_level_high,X
+	BCC knave_collide_levelup_none
+	LDA knave_exp_low
+	CLC
+	CMP knave_level_low,X
+	BCC knave_collide_levelup_none
+	INC knave_exp_level
+	LDA knave_health_max
+	CLC
+	ADC #$0A
+	STA knave_health_max
+	STA knave_health ; full heal on level up
+knave_collide_levelup_none
+	PLX
+knave_collide_increment
+	INX
+	CPX #$10
+	BNE knave_collide_loop
+	TYA
+	PLY
+	PLX
+	RTS
+knave_collide_drop
+	LDA knave_enemy_y,X
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_enemy_x,X
+	STA sub_write+1
+	LDA knave_enemy_y,X
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_items
+	STA sub_write+2
+	CLC
+	JSR sub_random
+	AND #%11110000
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	ROR A
+	BEQ knave_collide_drop_zero
+	CMP #$01
+	BEQ knave_collide_drop_one
+	CMP #$02
+	BEQ knave_collide_drop_two
+	CMP #$03
+	BEQ knave_collide_drop_three
+knave_collide_drop_none
+	LDA #$00 ; nothing
+	JMP knave_collide_drop_exit
+knave_collide_drop_zero
+	LDA #"!" ; potion
+	JMP knave_collide_drop_exit
+knave_collide_drop_one
+	LDA #"*" ; bomb
+	JMP knave_collide_drop_exit
+knave_collide_drop_two
+	LDA #"%" ; food
+	JMP knave_collide_drop_exit
+knave_collide_drop_three
+	LDA #"$" ; gold
+knave_collide_drop_exit
+	JSR sub_write
+	RTS
+	
+
+
+
+knave_ai
+	PHA
+	PHX
+	PHY
+	LDX #$00
+knave_ai_loop
+	LDA knave_enemy_h,X
+	BEQ knave_ai_increment
+	LDA knave_enemy_t,X
+	CMP #"B" ; bat
+	BEQ knave_ai_random
+	CMP #"G" ; goblin
+	BEQ knave_ai_follow
+	CMP #"H" ; hob
+	BEQ knave_ai_follow
+; put more here
+knave_ai_increment
+	INX
+	CPX #$10
+	BNE knave_ai_loop
+	PLY
+	PLX
+	PLA
+	RTS
+
+knave_ai_random
+	STZ knave_dist_x
+	STZ knave_dist_y
+	CLC
+	JSR sub_random
+	CLC
+	CMP #$80
+	BCC knave_ai_random_vert
+knave_ai_random_horz
+	CLC
+	JSR sub_random
+	CLC
+	CMP #$20 ; arbitrary movement prob
+	BCS knave_ai_random_width
+	CLC
+	JSR sub_random
+	CLC
+	CMP #$80
+	BCC knave_ai_random_left
+	LDA knave_enemy_x,X
+	CMP #$3F
+	BCS knave_ai_random_right
+	LDA #$01
+	JMP knave_ai_random_right
+knave_ai_random_left
+	LDA knave_enemy_x,X
+	BEQ knave_ai_random_right
+	LDA #$FF
+knave_ai_random_right
+	STA knave_dist_x
+knave_ai_random_width
+	JMP knave_ai_collide
+knave_ai_random_vert
+	CLC
+	JSR sub_random
+	CLC
+	CMP #$20 ; arbitrary movement prob
+	BCS knave_ai_random_length
+	CLC
+	JSR sub_random
+	CLC
+	CMP #$80
+	BCC knave_ai_random_up
+	LDA knave_enemy_y,X
+	CMP #$1B
+	BCS knave_ai_random_down
+	LDA #$01
+	JMP knave_ai_random_down
+knave_ai_random_up
+	LDA knave_enemy_y,X
+	BEQ knave_ai_random_down
+	LDA #$FF
+knave_ai_random_down
+	STA knave_dist_y
+knave_ai_random_length
+	JMP knave_ai_collide
+
+knave_ai_follow
+	STZ knave_dist_x
+	STZ knave_dist_y
+	CLC
+	JSR sub_random
+	CLC
+	CMP #$20 ; arbitrary move prob
+	BCS knave_ai_follow_calculate
+	JMP knave_ai_follow_move
+knave_ai_follow_calculate
+	LDA knave_enemy_x,X
+	SEC
+	SBC knave_player_x
+	BCS knave_ai_follow_dist_x
+	EOR #$FF
+	INC A
+knave_ai_follow_dist_x
+	STA knave_distance
+	LDA knave_enemy_y,X
+	SEC
+	SBC knave_player_y
+	BCS knave_ai_follow_dist_y
+	EOR #$FF
+	INC A
+knave_ai_follow_dist_y
+	CLC
+	ADC knave_distance
+	CLC
+	CMP #$10 ; arbitrary follow dist
+	BCC knave_ai_follow_continue
+	JMP knave_ai_follow_move
+knave_ai_follow_continue
+	CLC
+	JSR sub_random
+	CLC
+	CMP #$80
+	BCC knave_ai_follow_vert
+	LDA knave_enemy_x,X
+	SEC
+	SBC knave_player_x
+	BEQ knave_ai_follow_equal_x
+	BCC knave_ai_follow_right
+knave_ai_follow_left
+	LDA #$FF
+	STA knave_dist_x
+	JMP knave_ai_follow_move
+knave_ai_follow_right
+	LDA #$01
+	STA knave_dist_x
+	JMP knave_ai_follow_move
+knave_ai_follow_vert
+	LDA knave_enemy_y,X
+	SEC
+	SBC knave_player_y
+	BEQ knave_ai_follow_equal_y
+	BCC knave_ai_follow_down
+knave_ai_follow_up
+	LDA #$FF
+	STA knave_dist_y
+	JMP knave_ai_follow_move
+knave_ai_follow_down
+	LDA #$01
+	STA knave_dist_y
+	JMP knave_ai_follow_move
+knave_ai_follow_equal_y
+	LDA knave_enemy_x,X
+	SEC
+	SBC knave_player_x
+	CMP #$01
+	BEQ knave_ai_follow_left
+	CMP #$FF
+	BEQ knave_ai_follow_right
+	JMP knave_ai_follow_move
+knave_ai_follow_equal_x
+	LDA knave_enemy_y,X
+	SEC
+	SBC knave_player_y
+	CMP #$01
+	BEQ knave_ai_follow_up
+	CMP #$FF
+	BEQ knave_ai_follow_down
+	JMP knave_ai_follow_move
+knave_ai_follow_move
+	JMP knave_ai_collide
+
+knave_ai_collide
+	LDA knave_enemy_x,X
+	CLC
+	ADC knave_dist_x
+	CMP knave_player_x
+	BNE knave_ai_friends
+	LDA knave_enemy_y,X
+	CLC
+	ADC knave_dist_y
+	CMP knave_player_y
+	BNE knave_ai_friends
+	CLC
+	JSR sub_random
+	AND #%00111100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	CMP knave_defense
+	BCS knave_ai_damage
+	JMP knave_ai_increment
+knave_ai_damage	
+	LDA knave_enemy_d,X
+	CLC
+	ROR A
+	INC A
+	STA knave_filter
+knave_ai_damage_lesser
+	CLC
+	JSR sub_random
+	CLC
+	CMP knave_filter
+	BCS knave_ai_damage_lesser
+	CLC
+	ADC knave_filter
+	STA knave_filter
+	LDA knave_health
+	SEC
+	SBC knave_filter
+	STA knave_health
+	BEQ knave_ai_damage_dead
+	BCC knave_ai_damage_dead
+	JMP knave_ai_increment
+knave_ai_damage_dead
+	STZ knave_health
+	JMP knave_gameover
+knave_ai_friends
+	STX knave_filter
+	LDY #$00
+knave_ai_friends_loop
+	CPY knave_filter
+	BEQ knave_ai_friends_increment
+	LDA knave_enemy_x,X
+	CLC
+	ADC knave_dist_x
+	CMP knave_enemy_x,Y
+	BNE knave_ai_friends_increment
+	LDA knave_enemy_y,X
+	CLC
+	ADC knave_dist_y
+	CMP knave_enemy_y,Y
+	BNE knave_ai_friends_increment
+	JMP knave_ai_increment
+knave_ai_friends_increment
+	INY
+	CPY #$10
+	BNE knave_ai_friends_loop
+knave_ai_bounds
+	LDA knave_enemy_y,X
+	CLC
+	ADC knave_dist_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC knave_enemy_x,X
+	CLC
+	ADC knave_dist_x
+	STA sub_read+1
+	LDA knave_enemy_y,X
+	CLC
+	ADC knave_dist_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_read+2
+	JSR sub_read
+	CMP #$3A ; colon
+	BEQ knave_ai_move
+	;CMP #"."
+	;BEQ knave_ai_move
+	;CMP #"+"
+	;BEQ knave_ai_move
+	JMP knave_ai_increment
+knave_ai_move
+	LDA knave_enemy_x,X
+	CLC
+	ADC knave_dist_x
+	STA knave_enemy_x,X
+	LDA knave_enemy_y,X
+	CLC
+	ADC knave_dist_y
+	STA knave_enemy_y,X
+	JMP knave_ai_increment
+
+
+
+knave_light
+	PHA
+	PHX
+	STZ printchar_x
+	STZ printchar_y
+knave_light_loop
+	LDA knave_player_x
+	CMP printchar_x
+	BNE knave_light_calculate
+	LDA knave_player_y
+	CMP printchar_y
+	BNE knave_light_calculate
+	JMP knave_light_increment
+knave_light_calculate
+	LDA knave_player_x
+	SEC
+	SBC printchar_x
+	BCS knave_light_x
+	EOR #$FF
+	INC A
+knave_light_x
+	STA knave_distance
+	LDA knave_player_y
+	SEC
+	SBC printchar_y
+	BCS knave_light_y
+	EOR #$FF
+	INC A
+knave_light_y
+	CLC
+	ADC knave_distance
+	CMP knave_lamp
+	BEQ knave_light_dark
+	BCC knave_light_bright
+	JMP knave_light_increment
+knave_light_bright
+	LDA #$FF
+	STA knave_filter
+	JMP knave_light_continue
+knave_light_dark
+	LDA #$55
+	STA knave_filter
+knave_light_continue
+
+	LDX #$00
+knave_light_enemies
+	LDA knave_enemy_h,X
+	BEQ knave_light_enemies_increment
+	LDA knave_enemy_t,X
+	CLC
+	CMP #$41
+	BCC knave_light_enemies_increment
+	CLC
+	CMP #$5B
+	BCS knave_light_enemies_increment
+	LDA knave_enemy_x,X
+	CMP printchar_x
+	BNE knave_light_enemies_increment
+	LDA knave_enemy_y,X
+	CMP printchar_y
+	BNE knave_light_enemies_increment
+	LDA knave_filter
+	CMP #$FF
+	BNE knave_light_enemies_increment
+	LDA #$AA
+knave_light_enemies_print
+	STA printchar_foreground
+	LDA knave_enemy_t,X
+	JSR monochar
+	LDA #$FF
+	STA printchar_foreground
+	JMP knave_light_check
+knave_light_enemies_increment
+	INX
+	CPX #$10
+	BNE knave_light_enemies
+
+	LDA printchar_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC printchar_x
+	STA sub_read+1
+	LDA printchar_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_read+2
+	LDA knave_filter
+	STA printchar_foreground
+	JSR sub_read
+	PHA
+	LDA sub_read+2
+	CLC
+	ADC #$08 ; now in 'items' memory
+	STA sub_read+2
+	JSR sub_read
+	CMP #$00
+	BEQ knave_light_floor
+	PLA
+	LDA knave_filter
+	CMP #$FF
+	BNE knave_light_grey
+	LDA #$AA ; red
+	STA printchar_foreground
+knave_light_grey
+	JSR sub_read
+	JSR monochar
+	LDA #$FF
+	STA printchar_foreground
+	JMP knave_light_check
+knave_light_floor
+	PLA
+	JSR monochar
+	LDA #$FF
+	STA printchar_foreground
+	JMP knave_light_check
+knave_light_increment
+	LDA printchar_x
+	AND #%00111111
+	CMP #%00111111
+	BEQ knave_light_return
+	INC printchar_x
+	JMP knave_light_check
+knave_light_return
+	STZ printchar_x
+	INC printchar_y
+knave_light_check
+	LDA printchar_y
+	CMP #$1C
+	BCS knave_light_exit
+	JMP knave_light_loop
+knave_light_exit
+	PLX
+	PLA
+	RTS
+
+
+knave_blast
+	PHA
+	PHX
+	STZ printchar_x
+	STZ printchar_y
+knave_blast_loop
+	LDA knave_player_x
+	CMP printchar_x
+	BNE knave_blast_calculate
+	LDA knave_player_y
+	CMP printchar_y
+	BNE knave_blast_calculate
+	JMP knave_blast_increment
+knave_blast_calculate
+	LDA knave_player_x
+	SEC
+	SBC printchar_x
+	BCS knave_blast_x
+	EOR #$FF
+	INC A
+knave_blast_x
+	STA knave_distance
+	LDA knave_player_y
+	SEC
+	SBC printchar_y
+	BCS knave_blast_y
+	EOR #$FF
+	INC A
+knave_blast_y
+	CLC
+	ADC knave_distance
+	CMP #$03 ; arbitrary blast radius
+	BCS knave_blast_increment
+
+	LDA knave_player_x
+	PHA
+	LDA knave_player_y
+	PHA
+	LDA printchar_x
+	STA knave_player_x
+	LDA printchar_y
+	STA knave_player_y
+	JSR knave_collide
+	PLA
+	STA knave_player_y
+	PLA
+	STA knave_player_x
+
+	LDA printchar_y
+	AND #%00000011
+	CLC
+	ROR A
+	ROR A
+	ROR A
+	CLC
+	ADC printchar_x
+	STA sub_write+1
+	STA sub_read+1
+	LDA printchar_y
+	AND #%00011100
+	CLC
+	ROR A
+	ROR A
+	CLC
+	ADC #>knave_floor
+	STA sub_write+2
+	STA sub_read+2
+	JSR sub_read
+	CMP #"#"
+	BNE knave_blast_items
+	LDA #$3A
+	JSR sub_write
+knave_blast_items	
+	LDA sub_write+2
+	CLC
+	ADC #$08 ; now in 'items' memory
+	STA sub_write+2
+	LDA #$00
+	JSR sub_write
+knave_blast_increment
+	LDA printchar_x
+	AND #%00111111
+	CMP #%00111111
+	BEQ knave_blast_return
+	INC printchar_x
+	JMP knave_blast_check
+knave_blast_return
+	STZ printchar_x
+	INC printchar_y
+knave_blast_check
+	LDA printchar_y
+	CMP #$1C
+	BCS knave_blast_exit
+	JMP knave_blast_loop
+knave_blast_exit
+	PLX
+	PLA
+	RTS
+
+
+knave_enemy_draw ; X already loaded
+	PHA
+	PHX
+	LDA knave_enemy_h,X
+	BEQ knave_enemy_draw_exit
+	LDA knave_player_x
+	SEC
+	SBC knave_enemy_x,X
+	BCS knave_enemy_draw_x
+	EOR #$FF
+	INC A
+knave_enemy_draw_x
+	STA knave_distance
+	LDA knave_player_y
+	SEC
+	SBC knave_enemy_y,X
+	BCS knave_enemy_draw_y
+	EOR #$FF
+	INC A
+knave_enemy_draw_y
+	CLC
+	ADC knave_distance
+	CMP knave_lamp
+	BEQ knave_enemy_draw_dark
+	BCS knave_enemy_draw_exit
+	LDA #$AA
+	STA printchar_foreground
+	JMP knave_enemy_draw_bright
+knave_enemy_draw_dark
+	LDA #$55
+	STA printchar_foreground
+knave_enemy_draw_bright
+	LDA knave_enemy_x,X
+	STA printchar_x
+	LDA knave_enemy_y,X
+	STA printchar_y
+	LDA knave_enemy_t,X
+	JSR monochar
+	LDA #$FF
+	STA printchar_foreground
+knave_enemy_draw_exit
+	PLX
+	PLA
+	RTS
+
+
+
+knave_menu
+	PHA
+	PHX
+	PHY
+	STZ printchar_x
+	LDA #$1C
+	STA printchar_y
+	
+	LDX #$00
+knave_menu_loop
+	LDA knave_menu_text,X
+	CMP #$00
+	BEQ knave_menu_exit
+	CMP #$20 ; space
+	BEQ knave_menu_skip
+	JSR monochar
+	JMP knave_menu_increment
+knave_menu_skip
+	INC printchar_x
+knave_menu_increment
+	INX
+	BNE knave_menu_loop
+knave_menu_exit
+	LDA #$02
+	STA printchar_x
+	LDA #$0A
+	SEC
+	SBC knave_level
+	JSR knave_menu_number
+	LDA #$09
+	STA printchar_x
+	LDA knave_attack
+	JSR knave_menu_number
+	LDA #$10
+	STA printchar_x
+	LDA knave_defense
+	JSR knave_menu_number
+	LDA #$18
+	STA printchar_x
+	LDA knave_health
+	JSR knave_menu_number_zeros
+	LDA #$1C
+	STA printchar_x
+	LDA knave_health_max
+	JSR knave_menu_number_zeros
+	LDA #$23
+	STA printchar_x
+	LDA knave_potions
+	JSR knave_menu_number
+	LDA #$2A
+	STA printchar_x
+	LDA knave_bombs
+	JSR knave_menu_number
+	LDA #$34
+	STA printchar_x
+	LDA knave_food_high
+	JSR knave_menu_number_zeros
+	LDA #$3A
+	STA printchar_x
+	LDA knave_gold
+	JSR knave_menu_number
+
+	PLY
+	PLX
+	PLA
+	RTS
+knave_menu_text
+	.BYTE "Lvl  , "
+	.BYTE "Atk  , "
+	.BYTE "Def  , "
+	.BYTE "HP    /"
+	.BYTE "   , "
+	.BYTE "Ptn  , "
+	.BYTE "Bmb  , "
+	.BYTE "Food    "
+	.BYTE ", $"
+	.BYTE $00
+
+knave_menu_number_zeros
+	STZ basic_value1_high
+	STA basic_value1_low
+	CLC
+	CMP #$64
+	BCS knave_menu_number_print
+	PHA
+	LDA #"0"
+	JSR monochar
+	PLA
+	CLC
+	CMP #$0A
+	BCS knave_menu_number_print
+	PHA
+	LDA #"0"
+	JSR monochar
+	PLA
+	JMP knave_menu_number_print
+knave_menu_number
+	STZ basic_value1_high
+	STA basic_value1_low
+	CLC
+	CMP #$64
+	BCS knave_menu_number_print
+	INC printchar_x
+	CLC
+	CMP #$0A
+	BCS knave_menu_number_print
+	INC printchar_x
+knave_menu_number_print
+	PHY
+	JSR displaynum
+	PLY
+	RTS
+
+knave_message ; 'knave_text' already loaded with message location
+	PHA
+	PHX
+	STZ sub_write+1
+	LDA #$7C
+	STA sub_write+2
+knave_message_clear
+	LDA #$00
+	JSR sub_write
+	INC sub_write+1
+	BNE knave_message_clear
+	INC sub_write+2
+	LDA sub_write+2
+	CMP #$80
+	BCC knave_message_clear
+	STZ printchar_x
+	LDA #$1D
+	STA printchar_y
+	LDX #$00
+	LDA knave_text+0
+	STA sub_index+1
+	LDA knave_text+1
+	STA sub_index+2
+knave_message_loop
+	JSR sub_index
+	BEQ knave_message_break
+	JSR monochar
+	INX
+	CPX #$3F
+	BCS knave_message_break
+	JMP knave_message_loop
+knave_message_break
+	PLX
+	PLA
+	RTS
+
+knave_win
+	JSR knave_menu
+	LDA #<knave_win_text
+	STA knave_text+0
+	LDA #>knave_win_text
+	STA knave_text+1
+	JSR knave_message
+	JMP knave_gameover_clear
+
+knave_gameover
+	JSR knave_menu
+	LDA #<knave_gameover_text
+	STA knave_text+0
+	LDA #>knave_gameover_text
+	STA knave_text+1
+	JSR knave_message
+knave_gameover_clear
+	JSR knave_joy
+	CMP #$00
+	BNE knave_gameover_clear
+	JSR inputchar
+	CMP #$00
+	BNE knave_gameover_clear
+knave_gameover_wait
+	JSR knave_joy
+	CMP #$00
+	BNE knave_gameover_values
+	JSR inputchar
+	CMP #$00
+	BEQ knave_gameover_wait
+knave_gameover_values
+	CMP #$1B ; escape
+	BEQ knave_gameover_exit
+	CMP #$20 ; space
+	BEQ knave_gameover_restart
+	CMP #"0"
+	BEQ knave_gameover_restart
+	CMP #"Q"
+	BEQ knave_gameover_restart
+	CMP #"q"
+	BEQ knave_gameover_restart
+	CMP #"E"
+	BEQ knave_gameover_restart
+	CMP #"e"
+	BEQ knave_gameover_restart
+	JMP knave_gameover_wait
+knave_gameover_restart
+	JMP knave
+knave_gameover_exit
+	JMP bank_switch ; exit
+
+knave_win_text
+	.BYTE "You "
+	.BYTE "Escaped",$00
+
+knave_gameover_text
+	.BYTE "Game "
+	.BYTE "Over",$00
+
+
+monochar ; 64-column characters in 4-color mode
+	PHA
+	PHX
+	PHY
+	PHA
+	LDA printchar_x
+	CLC
+	ROL A
+	JSR displaychar_sub
+	LDA printchar_x
+	CLC
+	CMP #$40
+	BCS monochar_exit
+	JSR displaychar_lookup
+	LDX #$00
+monochar_loop
+	JSR printchar_read
+	AND printchar_foreground
+	JSR printchar_write
+	INX
+	INC printchar_read+1
+	INC printchar_write+1
+	JSR printchar_read
+	AND printchar_foreground
+	JSR printchar_write
+	INX
+	INC printchar_read+1
+	LDA printchar_write+1
+	CLC
+	ADC #$7F
+	STA printchar_write+1
+	BCC monochar_increment
+	INC printchar_write+2
+monochar_increment
+	CPX #$10
+	BNE monochar_loop
+monochar_exit
+	INC printchar_x
+	PLY	
+	PLX
+	PLA
+	RTS
 
 
 
@@ -5844,35 +7795,8 @@ colorchar ; 32-column characters in 16-color mode
 	ROL A
 	CLC
 	ROL A
-	STA printchar_write+1
-	LDA printchar_y
-	CLC
-	ROL A
-	CLC
-	ROL A
-	CLC
-	ADC #$08
-	STA printchar_write+2
-	PLA
-	SEC
-	SBC #$20
-	TAX
-	LDA #<key_bitmap
-	STA printchar_read+1
-	LDA #>key_bitmap
-	STA printchar_read+2
-colorchar_lookup
-	CPX #$00
-	BEQ colorchar_found
-	DEX
-	LDA printchar_read+1
-	CLC
-	ADC #$10
-	STA printchar_read+1
-	BNE colorchar_lookup
-	INC printchar_read+2
-	JMP colorchar_lookup
-colorchar_found
+	JSR displaychar_sub
+	JSR displaychar_lookup
 	LDX #$00
 colorchar_loop
 	JSR colorchar_move
@@ -5890,6 +7814,7 @@ colorchar_increment
 	INX
 	CPX #$10
 	BNE colorchar_loop
+	INC printchar_x
 	PLY	
 	PLX
 	PLA
@@ -5925,243 +7850,122 @@ colorchar_move_skip
 	BNE colorchar_move_start
 	RTS
 
-colornum ; converts hex to decimal value
+displaychar_sub
+	STA printchar_write+1
+	LDA printchar_y
+	CLC
+	ROL A
+	CLC
+	ROL A
+	CLC
+	ADC #$08
+	STA printchar_write+2
+	PLX
+	PLY
+	PLA
+	PHY
+	PHX
+	SEC
+	SBC #$20
+	TAX
+	LDA #<key_bitmap
+	STA printchar_read+1
+	LDA #>key_bitmap
+	STA printchar_read+2
+	RTS
+
+displaychar_lookup
+	CPX #$00
+	BEQ displaychar_found
+	DEX
+	LDA printchar_read+1
+	CLC
+	ADC #$10
+	STA printchar_read+1
+	BNE displaychar_lookup
+	INC printchar_read+2
+	JMP displaychar_lookup
+displaychar_found
+	RTS
+
+
+displaynum ; converts hex to decimal value
 	PHY
 	PHX
 	PHA
 	LDX #$00
-colornum_100_count
+displaynum_100_count
 	TAY
 	SEC
 	SBC #$64 ; 100 in hex
 	INX
-	BCS colornum_100_count
+	BCS displaynum_100_count
 	DEX
 	TXA
 	CMP #$00
-	BEQ colornum_100_skip
+	BEQ displaynum_100_skip
 	CLC
 	ADC #"0"
+	PHA
+	LDA displaynum_mode
+	BNE displaynum_color1
+	PLA
+	JSR monochar
+	JMP displaynum_100_skip
+displaynum_color1
+	PLA
 	JSR colorchar
-colornum_100_skip
-	INC printchar_x
+displaynum_100_skip
+	;INC printchar_x
 	TYA
 	LDX #$00
-colornum_10_count
+displaynum_10_count
 	TAY
 	SEC
 	SBC #$0A ; 10 in hex
 	INX
-	BCS colornum_10_count
+	BCS displaynum_10_count
 	DEX
 	TXA
-;	CMP #$00
-;	BEQ colornum_10_skip
+	CLC
+	ADC displaynum_mode
+	CMP #$00
+	BEQ displaynum_10_skip
+	DEC A
 	CLC
 	ADC #"0"
+	PHA
+	LDA displaynum_mode
+	BNE displaynum_color2
+	PLA
+	JSR monochar
+	JMP displaynum_10_skip
+displaynum_color2
+	PLA
 	JSR colorchar
-colornum_10_skip
-	INC printchar_x
+displaynum_10_skip
+	;INC printchar_x
 	TYA
 	CLC
 	ADC #"0"
+	PHA
+	LDA displaynum_mode
+	BNE displaynum_color3
+	PLA
+	JSR monochar
+	JMP displaynum_exit
+displaynum_color3
+	PLA
 	JSR colorchar
-	INC printchar_x
+displaynum_exit
+	;INC printchar_x
 	PLA
 	PLX
 	PLY
 	RTS
 
 
-
-
-
 ; unused space here
-
-
-; code below is only needed for simulator
-
-
-setup
-	JSR int_init
-	JSR via_init
-	JSR joy_init
-
-	STZ printchar_inverse ; turn off inverse
-	LDA #$FF ; white 
-	STA printchar_foreground
-	LDA #$00 ; black
-	STA printchar_background
-
-	LDA #$AD ; LDAa
-	STA sub_read+0
-	STA printchar_read+0
-	LDA #$60 ; RTS
-	STA sub_read+3
-	STA printchar_read+3
-
-	LDA #$BD ; LDAax
-	STA sub_index+0
-	LDA #$60 ; RTS
-	STA sub_index+3
-
-	LDA #$8D ; STAa
-	STA sub_write+0
-	STA printchar_write+0
-	LDA #$60 ; RTS
-	STA sub_write+3
-	STA printchar_write+3
-
-	LDA #$4C ; JMPa
-	STA sub_jump+0
-
-;	LDA #$4C ; JMPa
-;	STA sub_inputchar+0
-;	LDA #<inputchar
-;	STA sub_inputchar+1
-;	LDA #>inputchar
-;	STA sub_inputchar+2
-
-;	LDA #$4C ; JMPa
-;	STA sub_printchar+0
-;	LDA #<printchar
-;	STA sub_printchar+1
-;	LDA #>printchar
-;	STA sub_printchar+2
-
-;	LDA #$4C ; JMPa
-;	STA sub_sdcard_initialize+0
-;	LDA #<sdcard_initialize
-;	STA sub_sdcard_initialize+1
-;	LDA #>sdcard_initialize
-;	STA sub_sdcard_initialize+2
-
-;	LDA #$4C ; JMPa
-;	STA sub_sdcard_readblock+0
-;	LDA #<sdcard_readblock
-;	STA sub_sdcard_readblock+1
-;	LDA #>sdcard_readblock
-;	STA sub_sdcard_readblock+2
-
-;	LDA #$4C ; JMPa
-;	STA sub_sdcard_writeblock+0
-;	LDA #<sdcard_writeblock
-;	STA sub_sdcard_writeblock+1
-;	LDA #>sdcard_writeblock
-;	STA sub_sdcard_writeblock+2
-
-	STZ sub_random_var
-
-; uses A = A * 3 + 17 + T2rand
-	LDX #$00
-setup_random_loop
-	LDA setup_random_code,X
-	STA sub_random,X
-	INX
-	CPX #$13
-	BNE setup_random_loop
-
-;	JSR basic_clear
-
-	RTS
-
-; LDA sub_random_var
-; ROL A
-; CLC
-; ADC sub_random_var ; multiply by 3
-; CLC
-; ADC #$11 ; add 17
-; ADC via_t2cl ; add random value
-; STA sub_random_var
-; RTS
-setup_random_code
-	.BYTE $AD
-	.WORD sub_random_var
-	.BYTE $2A,$18,$6D
-	.WORD sub_random_var
-	.BYTE $18,$69,$11,$6D
-	.WORD via_t2cl
-	.BYTE $8D
-	.WORD sub_random_var
-	.BYTE $60
-
-
-
-int_init
-	LDA #$4C ; JMPa
-	STA vector_irq+0
-	LDA #<key_isr
-	STA vector_irq+1
-	LDA #>key_isr
-	STA vector_irq+2
-
-	LDA #$4C ; JMPa
-	STA vector_nmi+0
-	LDA #<joy_isr
-	STA vector_nmi+1
-	LDA #>joy_isr
-	STA vector_nmi+2
-	
-	RTS
-
-via_init
-	LDA #%10111111 ; PB is mostly output
-	STA via_db
-	STZ via_pb ; set output pins to low
-	STZ via_da ; PA is all input
-	LDA #%00000010 ; CA2 independent falling edge, CA1 falling edge
-	STA via_pcr
-	LDA #%10000011 ; interrupts on CA1 and CA2
-	STA via_ier
-
-	STZ key_write
-	STZ key_read
-	;STZ key_data
-	STZ key_counter
-	STZ key_release
-	STZ key_extended
-	STZ key_shift
-	STZ key_capslock
-	STZ key_alt_control
-
-	LDA #$80
-	STA mouse_pos_x
-	STA mouse_pos_y
-	STA mouse_prev_x
-	STA mouse_prev_y
-	STZ mouse_buttons
-	STZ mouse_prev_buttons
-	;STZ mouse_data
-	STZ mouse_counter
-	STZ mouse_state
-
-	LDA #%11010000 ; free run on T1 for audio
-	STA via_acr
-	
-	STZ via_t1cl ; zero out T1 counter to silence
-	STZ via_t1ch
-
-	LDA #$FF
-	STA via_t2cl ; T2 timer for random numbers
-	STA via_t2ch 
-	
-	CLI
-
-	RTS
-
-
-joy_init ; use at beginning
-	PHA
-	LDA #$FF
-	STA joy_buttons
-	LDA via_pb
-	ORA #joy_select ; now leave it high always for speed sake
-	STA via_pb
-	PLA
-	RTS
-
-	
-; code above is only needed for simulator
 
 
 	.ORG $F700 ; needed to put the tables on start of pages
