@@ -434,8 +434,141 @@ vector_reset
 	JSR function_keys_scratchpad
 	
 
-
 ; unused space here
+
+
+	
+selector
+	LDA #$E1 ; produces greyscale
+	STA $FFFF ; write non-$00 to ROM for 64-column 4-color mode
+	LDY #$08 ; start of screen
+	LDX #$00
+	LDA #$00 ; clear color
+selector_clearscreen_loop
+	STX sub_write+1
+	STY sub_write+2
+	JSR sub_write
+	INX
+	BNE selector_clearscreen_loop
+	INY
+	CPY #$80 ; end of screen
+	BNE selector_clearscreen_loop
+	STZ selector_position
+	LDA joy_buttons
+	STA selector_joy_prev
+	STZ printchar_x
+	STZ printchar_y
+	LDX #$00
+selector_draw
+	LDA selector_text,X
+	BEQ selector_loop
+	CMP #$0D ; return
+	BNE selector_skip
+	STZ printchar_x
+	INC printchar_y
+	LDA #" "
+selector_skip
+	JSR printchar
+	;INC printchar_x
+	INX
+	JMP selector_draw
+selector_loop
+	STZ printchar_x
+	LDA selector_position
+	INC A
+	STA printchar_y
+	LDA #$3E ; greater than
+	JSR printchar
+	DEC printchar_x
+	LDA joy_buttons
+	CMP selector_joy_prev
+	BEQ selector_keys
+	LDA joy_buttons
+	AND #%00000001
+	BEQ selector_joy_up
+	LDA joy_buttons
+	AND #%00000010
+	BEQ selector_joy_down
+	LDA joy_buttons
+	AND #%00110000
+	CMP #%00110000
+	BNE selector_joy_fire
+selector_keys
+	CLC
+	JSR sub_random ; for more randomization
+	LDA joy_buttons
+	STA selector_joy_prev
+	JSR inputchar
+	CMP #$00
+	BEQ selector_loop
+	CMP #$1B ; escape
+	BEQ selector_bank
+	CMP #$11 ; arrow up
+	BEQ selector_key_up
+	CMP #$12 ; arrow down
+	BEQ selector_key_down
+	CMP #$20 ; space
+	BEQ selector_activate
+	JMP selector_loop
+selector_bank
+	JMP bank_switch
+selector_joy_up
+	LDA selector_joy_prev
+	AND #%00000001
+	BEQ selector_keys
+selector_key_up
+	LDA #" "
+	JSR printchar
+	DEC printchar_x
+	LDA selector_position
+	BEQ selector_keys
+	DEC selector_position
+	JMP selector_keys
+selector_joy_down
+	LDA selector_joy_prev
+	AND #%00000010
+	BEQ selector_keys
+selector_key_down
+	LDA #" "
+	JSR printchar
+	DEC printchar_x
+	LDA selector_position
+	CLC
+	CMP #$10 ; 16 positions possible
+	BCS selector_keys
+	INC selector_position
+	JMP selector_keys
+selector_joy_fire
+	LDA selector_joy_prev
+	AND #%00110000
+	CMP #%00110000
+	BNE selector_keys
+selector_activate
+	LDA selector_position
+	JMP bank_switch
+
+selector_text
+	.BYTE "Select "
+	.BYTE "a Game"
+	.BYTE $0D
+	.BYTE " "
+	.BYTE "Tetra"
+	.BYTE $0D
+	.BYTE " "
+	.BYTE "Intruder"
+	.BYTE "s"
+	.BYTE $0D
+	.BYTE " "
+	.BYTE "Missile"
+	.BYTE $0D
+	.BYTE " "
+	.BYTE "Galian"
+	.BYTE $0D
+	.BYTE " "
+	.BYTE "Knave"
+	.BYTE $0D
+	.BYTE $00
+
 
 
 
@@ -2635,7 +2768,7 @@ scratchpad_joy
 	CMP #%00110000
 	BEQ scratchpad_joy_exit
 	PLA
-	JMP bank_switch
+	JMP selector
 scratchpad_joy_exit
 	PLA
 	RTS
@@ -2941,7 +3074,7 @@ function_keys_next3
 	STA function_mode
 	PLA
 	PLA
-	JMP bank_switch
+	JMP selector
 function_keys_next4
 	CMP #$0E ; F5, unused
 	BNE function_keys_next5
@@ -4363,11 +4496,11 @@ joy_isr_clock
 	RTI
 
 bank_switch
+	PHA
 	LDA via_pb
 	ORA #%00100000
 	STA via_pb
-	NOP
-	NOP
+	PLA
 	JMP function_keys_scratchpad
 
 

@@ -417,167 +417,36 @@ knave_digged_end	.EQU $9800 ; end
 
 vector_reset
 
-
-	
-selector
+	PHA
 	LDA #$00
 	STA $FFFF ; turn on 16 color mode
-	
 	LDA #$01
 	STA displaynum_mode
+	PLA
 
-	LDY #$08 ; start of screen
-	LDX #$00
-	LDA #$00 ; clear color
-selector_clearscreen_loop
-	STX sub_write+1
-	STY sub_write+2
-	JSR sub_write
-	INX
-	BNE selector_clearscreen_loop
-	INY
-	CPY #$80 ; end of screen
-	BNE selector_clearscreen_loop
-
-
-	STZ selector_position
-	LDA joy_buttons
-	STA selector_joy_prev
-	STZ printchar_x
-	STZ printchar_y
-	LDX #$00
-selector_draw
-	LDA selector_text,X
-	BEQ selector_loop
-	CMP #$0D ; return
-	BNE selector_skip
-	STZ printchar_x
-	INC printchar_y
-	LDA #" "
-selector_skip
-	JSR colorchar
-	;INC printchar_x
-	INX
-	JMP selector_draw
-selector_loop
-	STZ printchar_x
-	LDA selector_position
-	INC A
-	STA printchar_y
-	LDA #$3E ; greater than
-	JSR colorchar
-	DEC printchar_x
-	LDA joy_buttons
-	CMP selector_joy_prev
-	BEQ selector_keys
-	LDA joy_buttons
-	AND #%00000001
-	BEQ selector_joy_up
-	LDA joy_buttons
-	AND #%00000010
-	BEQ selector_joy_down
-	LDA joy_buttons
-	AND #%00110000
-	CMP #%00110000
-	BNE selector_joy_fire
-selector_keys
-	CLC
-	JSR sub_random ; for more randomization
-	LDA joy_buttons
-	STA selector_joy_prev
-	JSR inputchar
+	; A is already loaded with what game it should be	
 	CMP #$00
-	BEQ selector_loop
-	CMP #$1B ; escape
-	BEQ selector_bank
-	CMP #$11 ; arrow up
-	BEQ selector_key_up
-	CMP #$12 ; arrow down
-	BEQ selector_key_down
-	CMP #$20 ; space
-	BEQ selector_activate
-	JMP selector_loop
-selector_bank
-	JMP bank_switch
-selector_joy_up
-	LDA selector_joy_prev
-	AND #%00000001
-	BEQ selector_keys
-selector_key_up
-	LDA #" "
-	JSR colorchar
-	DEC printchar_x
-	LDA selector_position
-	BEQ selector_keys
-	DEC selector_position
-	JMP selector_keys
-selector_joy_down
-	LDA selector_joy_prev
-	AND #%00000010
-	BEQ selector_keys
-selector_key_down
-	LDA #" "
-	JSR colorchar
-	DEC printchar_x
-	LDA selector_position
-	CLC
-	CMP #$10 ; 16 positions possible
-	BCS selector_keys
-	INC selector_position
-	JMP selector_keys
-selector_joy_fire
-	LDA selector_joy_prev
-	AND #%00110000
-	CMP #%00110000
-	BNE selector_keys
-selector_activate
-	LDA selector_position
-	CMP #$00
-	BNE selector_next1
-	JMP tetra
-selector_next1
+	BEQ game_tetra
 	CMP #$01
-	BNE selector_next2
-	JMP intruders
-selector_next2
+	BEQ game_intruders
 	CMP #$02
-	BNE selector_next3
-	JMP missile
-selector_next3
+	BEQ game_missile
 	CMP #$03
-	BNE selector_next4
-	JMP galian
-selector_next4
+	BEQ game_galian
 	CMP #$04
-	BNE selector_next5
+	BEQ game_knave
+	JMP bank_switch
+game_tetra
+	JMP tetra
+game_intruders
+	JMP intruders
+game_missile
+	JMP missile
+game_galian
+	JMP galian
+game_knave
 	JMP knave
-selector_next5
-	NOP
-	JMP selector_loop
-
-selector_text
-	.BYTE "Select "
-	.BYTE "a Game"
-	.BYTE $0D
-	.BYTE " "
-	.BYTE "Tetra"
-	.BYTE $0D
-	.BYTE " "
-	.BYTE "Intruder"
-	.BYTE "s"
-	.BYTE $0D
-	.BYTE " "
-	.BYTE "Missile"
-	.BYTE $0D
-	.BYTE " "
-	.BYTE "Galian"
-	.BYTE $0D
-	.BYTE " "
-	.BYTE "Knave"
-	.BYTE $0D
-	.BYTE $00
-
-
+	
 
 
 tetra_color_fore	.EQU $77
@@ -5924,7 +5793,23 @@ knave_clearscreen_loop
 	INY
 	CPY #$80 ; end of screen
 	BNE knave_clearscreen_loop
-	
+
+	LDA knave_level
+	CMP #$01
+	BNE knave_next_message
+	LDA #<knave_intro_text
+	STA knave_text+0
+	LDA #>knave_intro_text
+	STA knave_text+1
+	JSR knave_message
+	JMP knave_subs
+knave_next_message
+	LDA #<knave_descend_text
+	STA knave_text+0
+	LDA #>knave_descend_text
+	STA knave_text+1
+	JSR knave_message
+knave_subs
 	JSR knave_clear
 	JSR knave_walk
 ;	JSR knave_location
@@ -6432,6 +6317,16 @@ knave_controls_change
 	STA knave_food_low
 	BCS knave_controls_food
 	DEC knave_food_high
+	LDA knave_food_high
+	CLC
+	CMP #$0A
+	BCS knave_controls_food
+	LDA #<knave_hungry_text
+	STA knave_text+0
+	LDA #>knave_hungry_text
+	STA knave_text+1
+	JSR knave_message
+	LDA knave_food_high
 	BNE knave_controls_food
 	JMP knave_gameover
 knave_controls_food
@@ -6475,9 +6370,11 @@ knave_controls_food
 	CMP #$1B ; escape
 	BEQ knave_controls_escape
 	CMP #$15 ; F12
-	BEQ knave_controls_move
+	;BEQ knave_controls_move
 ; put more here
 	JMP knave_controls_move
+knave_controls_escape
+	JMP knave_gameover_exit ; exit
 knave_controls_up
 	LDA knave_player_y
 	BEQ knave_controls_move
@@ -6505,10 +6402,20 @@ knave_controls_bomb
 	BEQ knave_controls_move
 	DEC knave_bombs
 	JSR knave_blast
+	LDA #<knave_bomb_text
+	STA knave_text+0
+	LDA #>knave_bomb_text
+	STA knave_text+1
+	JSR knave_message
 	JMP knave_controls_move
 knave_controls_potion
 	LDA knave_potions
 	BEQ knave_controls_move
+	LDA #<knave_potion_text
+	STA knave_text+0
+	LDA #>knave_potion_text
+	STA knave_text+1
+	JSR knave_message
 	DEC knave_potions
 	LDA knave_health_max
 	CLC
@@ -6522,8 +6429,6 @@ knave_controls_potion
 	LDA knave_health_max
 	STA knave_health
 	JMP knave_controls_move
-knave_controls_escape
-	JMP knave_gameover_exit ; exit
 ; put more here
 knave_controls_move
 	LDA knave_player_y
@@ -6769,9 +6674,19 @@ knave_pickup_four
 	JMP knave_pickup_clear
 knave_pickup_five
 	INC knave_lamp
+	LDA #<knave_lamp_text
+	STA knave_text+0
+	LDA #>knave_lamp_text
+	STA knave_text+1
+	JSR knave_message
 	JMP knave_pickup_five_check
 knave_pickup_six
 	INC knave_pickaxe
+	LDA #<knave_pickaxe_text
+	STA knave_text+0
+	LDA #>knave_pickaxe_text
+	STA knave_text+1
+	JSR knave_message
 	JMP knave_pickup_six_check
 knave_pickup_seven
 	INC knave_gold
@@ -6873,6 +6788,11 @@ knave_collide_loop
 knave_collide_check
 	LDA knave_enemy_h,X
 	BNE knave_collide_increment
+	LDA #<knave_defeated_text
+	STA knave_text+0
+	LDA #>knave_defeated_text
+	STA knave_text+1
+	JSR knave_message
 	JSR knave_collide_drop
 	LDA knave_exp_low
 	CLC	
@@ -6897,12 +6817,19 @@ knave_collide_levelup
 	ADC #$0A
 	STA knave_health_max
 	STA knave_health ; full heal on level up
+	LDA #<knave_levelup_text
+	STA knave_text+0
+	LDA #>knave_levelup_text
+	STA knave_text+1
+	JSR knave_message
 knave_collide_levelup_none
 	PLX
 knave_collide_increment
 	INX
 	CPX #$10
-	BNE knave_collide_loop
+	BEQ knave_collide_exit
+	JMP knave_collide_loop
+knave_collide_exit
 	TYA
 	PLY
 	PLX
@@ -6970,13 +6897,11 @@ knave_ai_loop
 	LDA knave_enemy_h,X
 	BEQ knave_ai_increment
 	LDA knave_enemy_t,X
-	CMP #"B" ; bat
-	BEQ knave_ai_random
-	CMP #"G" ; goblin
-	BEQ knave_ai_follow
-	CMP #"H" ; hob
-	BEQ knave_ai_follow
-; put more here
+	CMP #"F"
+	BEQ knave_ai_increment ; fungus
+	CMP #"B"
+	BEQ knave_ai_random ; bat
+	JMP knave_ai_follow ; all others
 knave_ai_increment
 	INX
 	CPX #$10
@@ -6998,7 +6923,7 @@ knave_ai_random_horz
 	CLC
 	JSR sub_random
 	CLC
-	CMP #$20 ; arbitrary movement prob
+	CMP #$80 ; arbitrary movement prob
 	BCS knave_ai_random_width
 	CLC
 	JSR sub_random
@@ -7022,7 +6947,7 @@ knave_ai_random_vert
 	CLC
 	JSR sub_random
 	CLC
-	CMP #$20 ; arbitrary movement prob
+	CMP #$80 ; arbitrary movement prob
 	BCS knave_ai_random_length
 	CLC
 	JSR sub_random
@@ -7530,7 +7455,6 @@ knave_enemy_draw_exit
 	RTS
 
 
-
 knave_menu
 	PHA
 	PHX
@@ -7644,6 +7568,10 @@ knave_menu_number_print
 	PLY
 	RTS
 
+knave_message_append
+	PHA
+	PHX
+	JMP knave_message_ready
 knave_message ; 'knave_text' already loaded with message location
 	PHA
 	PHX
@@ -7662,6 +7590,7 @@ knave_message_clear
 	STZ printchar_x
 	LDA #$1D
 	STA printchar_y
+knave_message_ready
 	LDX #$00
 	LDA knave_text+0
 	STA sub_index+1
@@ -7731,13 +7660,62 @@ knave_gameover_restart
 knave_gameover_exit
 	JMP bank_switch ; exit
 
+knave_intro_text
+	.BYTE "Escape "
+	.BYTE "the "
+	.BYTE "Caves!"
+	.BYTE $00
+
+knave_descend_text
+	.BYTE "You "
+	.BYTE "ascended"
+	.BYTE $00
+
+knave_defeated_text
+	.BYTE "You "
+	.BYTE "defeated"
+	.BYTE " a "
+	.BYTE "monster"
+	.BYTE $00
+
+knave_levelup_text
+	.BYTE "You feel"
+	.BYTE " more "
+	.BYTE "powerful"
+	.BYTE $00
+
+knave_lamp_text
+	.BYTE "You see "
+	.BYTE "further"
+	.BYTE $00
+
+knave_pickaxe_text
+	.BYTE "You dig "
+	.BYTE "faster"
+	.BYTE $00
+
+knave_hungry_text
+	.BYTE "Hungry!"
+	.BYTE $00
+
+knave_bomb_text
+	.BYTE "Boom!"
+	.BYTE $00
+
+knave_potion_text
+	.BYTE "Gulp!"
+	.BYTE $00
+
 knave_win_text
 	.BYTE "You "
-	.BYTE "Escaped",$00
+	.BYTE "Escaped!"
+	.BYTE $00
 
 knave_gameover_text
-	.BYTE "Game "
-	.BYTE "Over",$00
+	.BYTE "RIP, "
+	.BYTE "Try "
+	.BYTE "Again?"
+	.BYTE $00
 
 
 monochar ; 64-column characters in 4-color mode
@@ -7929,9 +7907,9 @@ displaynum_10_count
 	TXA
 	CLC
 	ADC displaynum_mode
-	CMP #$00
 	BEQ displaynum_10_skip
-	DEC A
+	SEC
+	SBC displaynum_mode
 	CLC
 	ADC #"0"
 	PHA
@@ -8493,11 +8471,11 @@ joy_isr_clock
 	RTI
 
 bank_switch
+	PHA
 	LDA via_pb
 	AND #%11011111
 	STA via_pb
-	NOP
-	NOP
+	PLA
 	JMP vector_reset
 
 
