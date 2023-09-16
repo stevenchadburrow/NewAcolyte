@@ -6648,7 +6648,7 @@ knave_joy ; returns ASCII equivalent
 	LDA joy_buttons
 	CMP #$FF
 	BNE knave_joy_continue
-	LDA #$80 ; arbitrary init delay
+	LDA #$40 ; arbitrary init delay
 	STA knave_joy_delay_init
 	STZ knave_joy_delay
 	LDA #$00
@@ -6664,7 +6664,7 @@ knave_joy_check
 	LDA knave_joy_delay_init
 	BEQ knave_joy_next0
 	DEC knave_joy_delay_init
-	CMP #$80 ; arbitrary init delay
+	CMP #$40 ; arbitrary init delay
 	BEQ knave_joy_next0
 	LDA #$00
 	RTS
@@ -6705,7 +6705,7 @@ knave_joy_next5
 	LDA #$20 ; space, bomb
 	RTS
 knave_joy_next6
-	LDA #$80 ; arbitrary init delay
+	LDA #$40 ; arbitrary init delay
 	STA knave_joy_delay_init
 	LDA #$00
 	RTS
