@@ -8,4 +8,6 @@ Currently it's software includes the Scratchpad, Monitor, BASIC, and games inclu
 
 (Bodge wire connects V-SYNC to /NMI. Additional pull-up resistors on JOY-UP, JOY-DOWN, JOY-BUTTON1, and JOY-BUTTON2. Additional pull-down resistor on ROM-BANK.)
 
-<img src="NewAcolyte.jpg">
+<img src="NewAcolyte.jpg"><br>
+<img src="NewAcolyte-TOTK.jpg"><br>
+<img src="NewAcolyte-Monitor.jpg"><br>
