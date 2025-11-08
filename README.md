@@ -11,3 +11,5 @@ Currently it's software includes the Scratchpad, Monitor, BASIC, and games inclu
 <img src="NewAcolyte.jpg"><br>
 <img src="NewAcolyte-TOTK.jpg"><br>
 <img src="NewAcolyte-Monitor.jpg"><br>
+<img src="NewAcolyte-MissileCommand.jpg"><br>
+<img src="NewAcolyte-SpaceInvaders.jpg"><br>
